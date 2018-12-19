@@ -1,4 +1,4 @@
-class SCCTree():
+class SCCGraph():
     def __init__(self, cfg):
 
         self.sccs = []
@@ -16,7 +16,8 @@ class SCCTree():
         self.root = self.scc_set[self.cfg_root]
 
         self.visited.clear()
-        self.build_tree(cfg, self.cfg_root)
+        self.build_graph(cfg, self.cfg_root)
+        self.root.all_incoming_vertices[cfg_root] = None
 
     def dfs(self, cfg, cur, edgeOf, callback):
         self.visited.add(cur)
@@ -46,20 +47,24 @@ class SCCTree():
             for vertex in scc.vertices:
                 self.scc_set[vertex] = scc
 
-    def build_tree(self, cfg, cur):
+    def build_graph(self, cfg, cur):
         self.visited.add(cur)
-        cur_scc = scc_set[cur]
+        cur_scc = self.scc_set[cur]
         for bb in cur.all_outgoing_basic_blocks:
-            if bb not in self.visited and scc_set[bb] != cur_scc:
-                cur_scc.add_outing_scc(scc_set[bb])
-                build_tree(self, cfg, bb)
+            if bb not in self.visited and self.scc_set[bb] != cur_scc:
+                cur_scc.add_cut_vertex(cur, bb, cur_scc, self.scc_set[bb])
+                self.build_graph(cfg, bb)
 
 class SCC():
     def __init__(self, root):
         self.root = root
         self.vertices = []
-        self.all_outgoing_sccs = set()
+        self.all_outgoing_vertices = {}
+        self.all_incoming_vertices = {}
+        self.states = {}
     def add_vertex(self, bb):
         self.vertices.append(bb)
-    def add_outing_scc(self, scc):
-        self.all_outgoing_sccs.add(scc)
+    def add_cut_vertex(self, from_bb, to_bb, from_scc, to_scc):
+        self.all_outgoing_vertices.setdefault(from_bb, []).append(to_scc)
+        to_scc.all_incoming_vertices.setdefault(to_bb, []).append(from_scc)
+        to_scc.states[to_bb] = None

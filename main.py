@@ -1,7 +1,8 @@
 from util import *
-from scc import SCCTree
+from scc import SCCGraph
 from evm_cfg_builder.cfg import CFG
 from argparse import ArgumentParser
+from sym_exec import sym_exec_scc_graph
 
 parser = ArgumentParser()
 parser.add_argument("src", help="source file name")
@@ -12,10 +13,12 @@ contracts = compile_contracts(args.src)
 
 for filename, bytecode in contracts:
 
+    print(filename, ':')
+
     cfg = CFG(bytecode)
+    """
     dotfile = cfg.output_to_dot(filename)
     output_graph(dotfile, filename[:filename.find('.')])
-
-    scc_tree = SCCTree(cfg)
-    print(filename, ':')
-    print(scc_tree.sccs)
+    """
+    scc_graph = SCCGraph(cfg)
+    # sym_exec_scc_graph(scc_graph)
