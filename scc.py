@@ -6,6 +6,7 @@ class MachineState():
         self.pc  = pc
         self.gas = gas
         self.mem = mem.copy()
+        self.memory = []
         self.stack = stack.copy()
         self.idx_mem = idx_mem_used
         self.constraints = []
@@ -49,14 +50,15 @@ class MachineState():
                 self.pc,
                 self.mem,
                 self.idx_mem,
-                self.stk)
+                self.stack)
         instance.constraints = self.constraints.copy()
         instance.gas_constraints = self.gas_constraints.copy()
         instance.sha3_list = self.sha3_list.copy()
         instance.variables = self.variables.copy()
         instance.balance   = self.balance.copy()
+        instance.memory    = self.memory.copy()
         instance.Ia   = self.Ia.copy()
-        if constraints: instance.add_constraint(constraint)
+        if constraint: instance.add_constraint(constraint)
         return instance
 
 class SCCGraph():
@@ -120,7 +122,7 @@ class SCCGraph():
                 self.build_graph(cfg, bb)
 
     def get_falls_to(self, bb):
-        return self.cfg.basic_blocks_from_addr(bb.end.pc + 1)
+        return self.cfg.basic_blocks_from_addr[bb.end.pc + bb.end.size]
 
 class SCC():
     def __init__(self, root):

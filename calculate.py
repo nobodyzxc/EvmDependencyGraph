@@ -1,4 +1,6 @@
-from opcode import *
+from opcodes import *
+from util import *
+import pprint
 
 def calculate_gas(opcode, state, solver):
 

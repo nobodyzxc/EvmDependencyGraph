@@ -16,9 +16,9 @@ for filename, bytecode in contracts:
     print(filename, ':')
 
     cfg = CFG(bytecode)
-    """
+
     dotfile = cfg.output_to_dot(filename)
     output_graph(dotfile, filename[:filename.find('.')])
-    """
+
     scc_graph = SCCGraph(cfg)
     sym_exec_scc_graph(scc_graph, bytecode)

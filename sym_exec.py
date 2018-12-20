@@ -1,14 +1,24 @@
 from z3 import *
 from vargenerator import *
+from calculate import *
+from util import *
+import zlib, base64
 # from scc import MachineState
 
 solver = Solver()
 gen = Generator()
-visited_edge = set()
+#visited_edge = set()
+visited_edge = {}
 current_state = None
+unvisited_blocks = None
+
+MSIZE = False
+
+UNSIGNED_BOUND_NUMBER = 2**256 - 1
+CONSTANT_ONES_159 = BitVecVal((1 << 160) - 1, 256)
 
 terminal_opcode = ("STOP" ,"RETURN" ,"SUICIDE" ,
-        "REVERT" ,"ASSERTFAIL")
+        "REVERT" ,"ASSERTFAIL", "INVALID")
 
 def init_current_state(state):
     global solver
@@ -21,11 +31,21 @@ def init_current_state(state):
         solver.append(constraints)
 
 def all_entries_exist_state(scc):
-    return all([e != None for e in scc.states.values()])
+    return all([e for e in scc.states.values()])
 
 def sym_exec_scc_graph(scc_graph, bytecode):
     global evm_code
+    global MSIZE
+    global unvisited_blocks
+    global unvisited_sccs
+
     evm_code = bytecode
+    MSIZE = True if 'MSIZE' in [ins.name for ins in scc_graph.cfg.instructions] else False
+    unvisited_blocks = set(scc_graph.cfg.basic_blocks)
+    unvisited_sccs = set(scc_graph.sccs)
+    print('block number:', len(unvisited_blocks))
+    print('scc   number:', len(unvisited_sccs))
+
     loop = 0
     queue = [scc_graph.root]
     visited_sccs = set()
@@ -39,12 +59,22 @@ def sym_exec_scc_graph(scc_graph, bytecode):
                             .difference(visited_sccs))
             queue.pop(0)
         elif loop > len(queue):
-            print('unsolvable status'), exit(1)
+            print('unsolvable status')
+            print(queue[0].vertices)
+            print(unvisited_blocks)
+            print(unvisited_sccs)
+            print('block number:', len(unvisited_blocks))
+            print('scc   number:', len(unvisited_sccs))
+            return
+            # exit(1)
         else:
             loop += 1
             queue.append(queue.pop(0))
 
 def sym_exec_scc(scc_graph, scc):
+    global unvisited_sccs
+    unvisited_sccs.remove(scc)
+
     for entry in scc.states:
         # may exist many states but apply states[0] first
         init_current_state(scc.states[entry][0])
@@ -52,9 +82,10 @@ def sym_exec_scc(scc_graph, scc):
         # and copy a new one to current for execution
         sym_exec_block(scc_graph, scc, entry, current_state)
 
-def on_scc_border_or_loop(scc_graph, scc, block, dest, state):
+def on_scc_border_or_loop_limit(
+        scc_graph, scc, block, dest, state):
     global visited_edge
-    if (block, dest) in visited_edge:
+    if visited_edge.get((block, dest), 0) > 20:
         return True # duplicated path
     elif dest not in scc.vertices:
         # next scc, store state, stop execution
@@ -68,6 +99,9 @@ def sym_exec_block(scc_graph, scc, block, state):
     global visited_edge
     global branch_expr
     global solver
+    global unvisited_blocks
+
+    unvisited_blocks.remove(block)
 
     for instr in block.instructions:
         dest = sym_exec_ins(instr, state)
@@ -76,15 +110,16 @@ def sym_exec_block(scc_graph, scc, block, state):
 
     if block.end.name == 'JUMP':
         # unconditoinal
-        if not on_scc_border_or_loop(
+        if not on_scc_border_or_loop_limit(
                 scc_graph, scc, block, dest, state):
-            visited_edge.add((block, dest))
+            visited_edge[(block, dest)] = \
+                    visited_edge.get((block, dest), 0) + 1
             sym_exec_block(scc_graph, scc, dest, state)
-            visited_edge.remove((block, dest))
+            visited_edge[(block, dest)] -= 1
 
     elif block.end.name == 'JUMPI':
         # conditional
-        true_dest, false_dest = dest, scc_graph.find_falls_to(block)
+        true_dest, false_dest = dest, scc_graph.get_falls_to(block)
         true_branch_expr, false_branch_expr = branch_expr, Not(branch_expr)
 
         solver.push()
@@ -93,12 +128,14 @@ def sym_exec_block(scc_graph, scc, block, state):
         try:
             if solver.check() == unsat:
                 print("infeasible path on", true_branch_expr)
-            elif not on_scc_border_or_loop(
+            elif not on_scc_border_or_loop_limit(
                     scc_graph, scc, block, true_dest, state):
-                visited_edge.add((block, true_dest))
+                visited_edge[(block, true_dest)] = \
+                        visited_edge.get(
+                                (block, true_dest), 0) + 1
                 sym_exec_block(scc_graph, scc,
                         true_dest, state.copy(true_branch_expr))
-                visited_edge.remove((block, true_dest))
+                visited_edge[(block, true_dest)] -= 1
 
         except Exception as e:
             print("true branch Exception:", e)
@@ -110,12 +147,14 @@ def sym_exec_block(scc_graph, scc, block, state):
         try:
             if solver.check() == unsat:
                 print("infeasible path on", false_branch_expr)
-            elif not on_scc_border_or_loop(
+            elif not on_scc_border_or_loop_limit(
                     scc_graph, scc, block, false_dest, state):
-                visited_edge.add((block, false_dest))
+                visited_edge[(block, false_dest)] = \
+                        visited_edge.get(
+                                (block, false_dest), 0) + 1
                 sym_exec_block(scc_graph, scc,
                         false_dest, state.copy(false_branch_expr))
-                visited_edge.remove((block, false_dest))
+                visited_edge[(block, false_dest)] -= 1
         except Exception as e:
             print("false branch Exception:", e)
 
@@ -127,11 +166,13 @@ def sym_exec_block(scc_graph, scc, block, state):
         pass
     else:
         dest = scc_graph.get_falls_to(block)
-        if not on_scc_border_or_loop(
+        if not on_scc_border_or_loop_limit(
                 scc_graph, scc, block, dest, state):
+            visited_edge[(block, dest)] = \
+                    visited_edge.get((block, dest), 0) + 1
             visited_edge.add((block, dest))
             sym_exec_block(scc_graph, scc, dest, state)
-            visited_edge.remove((block, dest))
+            visited_edge[(block, dest)] -= 1
 
 def sym_exec_ins(instr, state):
     global gen
@@ -142,6 +183,7 @@ def sym_exec_ins(instr, state):
 
     mem = state.mem
     stack = state.stack
+    memory = state.memory
     variables = state.variables
     sha3_list = state.sha3_list
 
@@ -488,7 +530,7 @@ def sym_exec_ins(instr, state):
             raise ValueError('STACK underflow')
     elif opcode == "GT":
         if len(stack) > 1:
-            global_state["pc"] = global_state["pc"] + 1
+            state.pc += 1
             first = stack.pop(0)
             second = stack.pop(0)
             if isAllReal(first, second):
@@ -1149,7 +1191,7 @@ def sym_exec_ins(instr, state):
     elif opcode.startswith('PUSH', 0):  # this is a push instruction
         position = int(opcode[4:], 10)
         state.pc += 1 + position
-        pushed_value = int(instr.operand, 16)
+        pushed_value = instr.operand
         stack.insert(0, pushed_value)
         # if global_params.UNIT_TEST == 3: # test evm symbolic
         #     stack[0] = BitVecVal(stack[0], 256)
