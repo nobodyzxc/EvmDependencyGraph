@@ -21,4 +21,4 @@ for filename, bytecode in contracts:
     output_graph(dotfile, filename[:filename.find('.')])
     """
     scc_graph = SCCGraph(cfg)
-    sym_exec_scc_graph(scc_graph)
+    sym_exec_scc_graph(scc_graph, bytecode)
