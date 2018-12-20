@@ -99,7 +99,7 @@ class CFGDotExporter(Exporter):
         stops = {hex(block.start.pc): "blue" for block in sccg.cfg.basic_blocks
                 if block.end.name == 'STOP'}
         throws = {hex(block.start.pc): "red" for block in sccg.cfg.basic_blocks
-                  if block.end.name in ('INVALID', 'THROW' 'THROWI' 'REVERT')}
+                  if block.end.name in ('INVALID', 'THROW', 'THROWI', 'REVERT')}
         suicides = {hex(block.start.pc): "purple" for block in sccg.cfg.basic_blocks
                     if block.end.name == 'SELFDESTRUCT'}
         # creates = {hex(block.start.pc): "brown" for block in sccg.cfg.basic_blocks
@@ -108,9 +108,21 @@ class CFGDotExporter(Exporter):
         #          if any(op.opcode.is_call() for op in block.tac_ops)}
         color_dict = {**returns, **stops, **throws, **suicides} #, **creates, **calls}
         nx.set_node_attributes(G, "color", color_dict)
-        # filldict = {hex(b.start.pc): "white" if len(b.entry_stack) <= 20 else "red"
-        #             for b in cfg.blocks}
-        # nx.set_node_attributes(G, "fillcolor", filldict)
+
+        filldict = {hex(b.start.pc): "white" \
+                for b in sccg.cfg.basic_blocks if b not in sccg.states}
+
+        for scc in sccg.sccs:
+            if len(scc.vertices) > 1:
+                for bb in scc.vertices:
+                    if bb not in filldict:
+                        filldict[hex(bb.start.pc)] = "yellow"
+
+        for block in sccg.unvisited_blocks:
+            filldict[hex(block.start.pc)] = ''
+
+        nx.set_node_attributes(G, "fillcolor", filldict)
+
         nx.set_node_attributes(G, "style", "filled")
 
         # Annotate each node with its basic block's internal data for later display
@@ -120,14 +132,24 @@ class CFGDotExporter(Exporter):
 
         block_strings = {}
         for block in sccg.cfg.basic_blocks:
-            block_string = str(block)
-            # def_site_string = "\n\nDef sites:\n"
-            # for v in block.entry_stack.value:
-            #     def_site_string += str(v) \
-            #                        + ": {" \
-            #                        + ", ".join(str(d) for d in v.def_sites) \
-            #                        + "}\n"
-            block_strings[hex(block.start.pc)] = block_string # + def_site_string
+
+            block_string = '{}\n{}\n\n'.format(
+                    str(block), str(sccg.scc_set[block]))
+
+            block_content = ""
+
+            if block in sccg.scc_set[block].states:
+                block_content += "init state:\n{}\n".format( \
+                        sccg.scc_set[block].states[block])
+
+            block_content += "\n\n{}\n\n".format(
+                    '\n'.join('{}:{}'.format(hex(ins.pc),
+                        str(ins)) for ins in block.instructions))
+    
+            if block in sccg.states:
+                block_content += "final state:\n{}\n".format(sccg.states[block])
+
+            block_strings[hex(block.start.pc)] = block_string + block_content
         nx.set_node_attributes(G, "tooltip", block_strings)
 
         # Write non-dot files using pydot and Graphviz

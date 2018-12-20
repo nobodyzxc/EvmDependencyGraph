@@ -86,6 +86,11 @@ class SCCGraph():
         self.root.states[self.cfg_root] = \
                 [MachineState(0, 0, {}, 0, [])]
 
+        self.unvisited_sccs   = set(self.sccs)
+        self.unvisited_blocks = cfg.basic_blocks
+        self.states           = {}
+
+
     def dfs(self, cfg, cur, edgeOf, callback):
         self.visited.add(cur)
         for bb in edgeOf(cur):
@@ -132,7 +137,8 @@ class SCCGraph():
         g.add_nodes_from(hex(b.start.pc) for b in self.cfg.basic_blocks)
 
         for p in self.cfg.basic_blocks:
-            g.add_edges_from((hex(p.start.pc), hex(s.start.pc)) for s in p.all_outgoing_basic_blocks)
+            g.add_edges_from((hex(p.start.pc), hex(s.start.pc)) \
+                    for s in p.all_outgoing_basic_blocks)
 
         return g
 
@@ -144,6 +150,8 @@ class SCC():
         self.all_outgoing_vertices = {}
         self.all_incoming_vertices = {}
         self.states = {}
+    def __str__(self):
+        return '<scc object root is {}>'.format(self.root)
     def add_vertex(self, bb):
         self.vertices.add(bb)
     def add_cut_vertex(self, from_bb, to_bb, from_scc, to_scc):

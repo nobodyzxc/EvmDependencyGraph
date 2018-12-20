@@ -10,7 +10,6 @@ gen = Generator()
 #visited_edge = set()
 visited_edge = {}
 current_state = None
-unvisited_blocks = None
 
 MSIZE = False
 
@@ -36,15 +35,11 @@ def all_entries_exist_state(scc):
 def sym_exec_scc_graph(scc_graph, bytecode):
     global evm_code
     global MSIZE
-    global unvisited_blocks
-    global unvisited_sccs
 
     evm_code = bytecode
     MSIZE = True if 'MSIZE' in [ins.name for ins in scc_graph.cfg.instructions] else False
-    unvisited_blocks = set(scc_graph.cfg.basic_blocks)
-    unvisited_sccs = set(scc_graph.sccs)
-    print('block number:', len(unvisited_blocks))
-    print('scc   number:', len(unvisited_sccs))
+    print('block number:', len(scc_graph.unvisited_blocks))
+    print('scc   number:', len(scc_graph.unvisited_sccs))
 
     loop = 0
     queue = [scc_graph.root]
@@ -61,10 +56,10 @@ def sym_exec_scc_graph(scc_graph, bytecode):
         elif loop > len(queue):
             print('unsolvable status')
             print(queue[0].vertices)
-            print(unvisited_blocks)
-            print(unvisited_sccs)
-            print('block number:', len(unvisited_blocks))
-            print('scc   number:', len(unvisited_sccs))
+            print(scc_graph.unvisited_blocks)
+            print(scc_graph.unvisited_sccs)
+            print('block number:', len(scc_graph.unvisited_blocks))
+            print('scc   number:', len(scc_graph.unvisited_sccs))
             return
             # exit(1)
         else:
@@ -72,8 +67,8 @@ def sym_exec_scc_graph(scc_graph, bytecode):
             queue.append(queue.pop(0))
 
 def sym_exec_scc(scc_graph, scc):
-    global unvisited_sccs
-    unvisited_sccs.remove(scc)
+
+    scc_graph.unvisited_sccs.remove(scc)
 
     for entry in scc.states:
         # may exist many states but apply states[0] first
@@ -99,9 +94,8 @@ def sym_exec_block(scc_graph, scc, block, state):
     global visited_edge
     global branch_expr
     global solver
-    global unvisited_blocks
 
-    unvisited_blocks.remove(block)
+    scc_graph.unvisited_blocks.remove(block)
 
     for instr in block.instructions:
         dest = sym_exec_ins(instr, state)
@@ -161,9 +155,7 @@ def sym_exec_block(scc_graph, scc, block, state):
         solver.pop()
 
     elif block.end.name in terminal_opcode :
-        # todo record result
-        # terminal
-        pass
+        scc_graph.states.setdefault(block, []).append(state)
     else:
         dest = scc_graph.get_falls_to(block)
         if not on_scc_border_or_loop_limit(
@@ -798,7 +790,7 @@ def sym_exec_ins(instr, state):
             mem_location = stack.pop(0)
             code_from = stack.pop(0)
             no_bytes = stack.pop(0)
-            current_miu_i = self.miu_i
+            current_miu_i = state.miu_i
 
             if isAllReal(mem_location, current_miu_i, code_from, no_bytes):
                 if six.PY2:
@@ -863,7 +855,7 @@ def sym_exec_ins(instr, state):
             # else:
             # not handled yet
             new_var_name = gen.gen_code_size_var(address)
-            if new_var_name in path_conditions_and_vars:
+            if new_var_name in variables:
                 new_var = variables[new_var_name]
             else:
                 new_var = BitVec(new_var_name, 256)
@@ -1304,7 +1296,7 @@ def sym_exec_ins(instr, state):
                         new_address_name = gen.gen_arbitrary_address_var()
                     old_balance_name = gen.gen_arbitrary_var()
                     old_balance = BitVec(old_balance_name, 256)
-                    path_conditions_and_vars[old_balance_name] = old_balance
+                    variables[old_balance_name] = old_balance
                     constraint = (old_balance >= 0)
                     solver.add(constraint)
                     state.constraints.append(constraint)
