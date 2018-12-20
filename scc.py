@@ -1,4 +1,5 @@
 from z3 import *
+import networkx as nx
 
 class MachineState():
     #  machine state as tuple (g,pc,m,i,s)
@@ -123,6 +124,18 @@ class SCCGraph():
 
     def get_falls_to(self, bb):
         return self.cfg.basic_blocks_from_addr[bb.end.pc + bb.end.size]
+
+    def nx_graph(self):
+
+        g = nx.DiGraph()
+
+        g.add_nodes_from(hex(b.start.pc) for b in self.cfg.basic_blocks)
+
+        for p in self.cfg.basic_blocks:
+            g.add_edges_from((hex(p.start.pc), hex(s.start.pc)) for s in p.all_outgoing_basic_blocks)
+
+        return g
+
 
 class SCC():
     def __init__(self, root):
