@@ -1,3 +1,27 @@
+class MachineState():
+    #  machine state as tuple (g,pc,m,i,s)
+    def __init__(self, gas, pc, mem, idx_mem_used, stk):
+        self.pc  = pc
+        self.gas = gas
+        self.mem = mem.copy()
+        self.stk = stk.copy()
+        self.idx_mem = idx_mem_used
+        self.constraints = []
+
+    def add_constraint(constraint):
+        self.constraint.append(constraint)
+
+    def copy(self, constraint = None):
+        instance = MachineState(
+                self.gas,
+                self.pc,
+                self.mem,
+                self.idx_mem,
+                self.stk)
+        instance.constraints = self.constraints.copy()
+        if constraints: instance.add_constraint(constraint)
+        return instance
+
 class SCCGraph():
     def __init__(self, cfg):
 
@@ -12,12 +36,14 @@ class SCCGraph():
         self.find_scc(cfg)
 
         self.set_collapsing()
-        self.cfg_root = cfg.basic_blocks_from_addr[0x0]
+        self.cfg_root = cfg.entry_point
         self.root = self.scc_set[self.cfg_root]
 
         self.visited.clear()
         self.build_graph(cfg, self.cfg_root)
-        self.root.all_incoming_vertices[cfg_root] = None
+        self.root.all_incoming_vertices[self.cfg_root] = None
+        self.root.states[self.cfg_root] = \
+                [MachineState(0, 0, [], 0, [])]
 
     def dfs(self, cfg, cur, edgeOf, callback):
         self.visited.add(cur)
@@ -55,16 +81,24 @@ class SCCGraph():
                 cur_scc.add_cut_vertex(cur, bb, cur_scc, self.scc_set[bb])
                 self.build_graph(cfg, bb)
 
+    def find_falls_to(self, bb):
+        return self.cfg.basic_blocks_from_addr(bb.end.pc + 1)
+
 class SCC():
     def __init__(self, root):
         self.root = root
-        self.vertices = []
+        self.vertices = set()
         self.all_outgoing_vertices = {}
         self.all_incoming_vertices = {}
         self.states = {}
     def add_vertex(self, bb):
-        self.vertices.append(bb)
+        self.vertices.add(bb)
     def add_cut_vertex(self, from_bb, to_bb, from_scc, to_scc):
         self.all_outgoing_vertices.setdefault(from_bb, []).append(to_scc)
         to_scc.all_incoming_vertices.setdefault(to_bb, []).append(from_scc)
-        to_scc.states[to_bb] = None
+        to_scc.states[to_bb] = []
+    def outgoing_sccs(self):
+        out = set()
+        for sccs in self.all_outgoing_vertices.values():
+            out.update(sccs)
+        return out
