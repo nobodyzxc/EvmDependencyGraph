@@ -62,6 +62,7 @@ class MachineState():
 class SCCGraph():
     def __init__(self, cfg):
 
+        self.cfg = cfg
         self.sccs = []
         self.scc_set = {}
         self.finish = []

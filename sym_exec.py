@@ -58,6 +58,7 @@ def on_scc_border_or_loop(scc_graph, scc, block, dest, state):
         return True # duplicated path
     elif dest not in scc.vertices:
         # next scc, store state, stop execution
+        state.pc = dest.start.pc
         scc_graph.scc_set[dest].states[dest].append(state)
         return True
     else:
@@ -71,6 +72,8 @@ def sym_exec_block(scc_graph, scc, block, state):
     for instr in block.instructions:
         dest = sym_exec_ins(instr, state)
 
+    if dest: dest = scc_graph.cfg.basic_blocks_from_addr[dest]
+
     if block.end.name == 'JUMP':
         # unconditoinal
         if not on_scc_border_or_loop(
@@ -81,7 +84,7 @@ def sym_exec_block(scc_graph, scc, block, state):
 
     elif block.end.name == 'JUMPI':
         # conditional
-        true_dest, false_dest = jump_dest, scc_graph.find_falls_to(block)
+        true_dest, false_dest = dest, scc_graph.find_falls_to(block)
         true_branch_expr, false_branch_expr = branch_expr, Not(branch_expr)
 
         solver.push()
