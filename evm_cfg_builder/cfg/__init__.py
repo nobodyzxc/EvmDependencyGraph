@@ -40,8 +40,13 @@ class CFG(object):
         # an address to the basic block
         # The address can be the first or the last
         # instructions
+
+        self.vsa = []
+
         self.__basic_blocks = dict()
         self.__instructions = dict()
+
+        self.asm = None
 
         if bytecode is not None:
             if isinstance(bytecode, str):
@@ -76,6 +81,9 @@ class CFG(object):
                 function.entry,
                 function.hash_id
             )
+
+            self.vsa.append(vsa)
+
             bbs = vsa.analyze()
 
             function.basic_blocks = [self.__basic_blocks[bb] for bb in bbs]
@@ -173,7 +181,9 @@ class CFG(object):
 
         bb = basic_block.BasicBlock()
 
-        for instruction in disassemble_all(self.bytecode):
+        self.asm = disassemble_all(self.bytecode)
+
+        for instruction in self.asm:
             self.__instructions[instruction.pc] = instruction
 
             if instruction.name == 'JUMPDEST':

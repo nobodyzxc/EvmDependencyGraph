@@ -56,8 +56,8 @@ def sym_exec_scc_graph(scc_graph, bytecode):
         elif loop > len(queue):
             print('unsolvable status')
             print(queue[0].vertices)
-            print(scc_graph.unvisited_blocks)
-            print(scc_graph.unvisited_sccs)
+            print('unvisited_blocks:', scc_graph.unvisited_blocks)
+            print('unvisited_sccs:', scc_graph.unvisited_sccs)
             print('block number:', len(scc_graph.unvisited_blocks))
             print('scc   number:', len(scc_graph.unvisited_sccs))
             return
@@ -68,7 +68,7 @@ def sym_exec_scc_graph(scc_graph, bytecode):
 
 def sym_exec_scc(scc_graph, scc):
 
-    scc_graph.unvisited_sccs.remove(scc)
+    if scc in scc_graph.unvisited_sccs: scc_graph.unvisited_sccs.remove(scc)
 
     for entry in scc.states:
         # may exist many states but apply states[0] first
@@ -80,7 +80,7 @@ def sym_exec_scc(scc_graph, scc):
 def on_scc_border_or_loop_limit(
         scc_graph, scc, block, dest, state):
     global visited_edge
-    if visited_edge.get((block, dest), 0) > 20:
+    if visited_edge.get((block, dest), 0) > 10:
         return True # duplicated path
     elif dest not in scc.vertices:
         # next scc, store state, stop execution
@@ -91,11 +91,16 @@ def on_scc_border_or_loop_limit(
         return False
 
 def sym_exec_block(scc_graph, scc, block, state):
+
+    # print('exec', block)
+
     global visited_edge
     global branch_expr
     global solver
 
-    scc_graph.unvisited_blocks.remove(block)
+    state.path.append('{:x}'.format(block.start.pc))
+
+    if block in scc_graph.unvisited_blocks: scc_graph.unvisited_blocks.remove(block)
 
     for instr in block.instructions:
         dest = sym_exec_ins(instr, state)
@@ -114,43 +119,57 @@ def sym_exec_block(scc_graph, scc, block, state):
     elif block.end.name == 'JUMPI':
         # conditional
         true_dest, false_dest = dest, scc_graph.get_falls_to(block)
-        true_branch_expr, false_branch_expr = branch_expr, Not(branch_expr)
+
+        true_branch_expr   = branch_expr
 
         solver.push()
         solver.add(true_branch_expr)
 
-        try:
-            if solver.check() == unsat:
-                print("infeasible path on", true_branch_expr)
-            elif not on_scc_border_or_loop_limit(
-                    scc_graph, scc, block, true_dest, state):
-                visited_edge[(block, true_dest)] = \
-                        visited_edge.get(
-                                (block, true_dest), 0) + 1
-                sym_exec_block(scc_graph, scc,
-                        true_dest, state.copy(true_branch_expr))
-                visited_edge[(block, true_dest)] -= 1
+        true_state = state.copy()
+        true_state.add_constraint(true_branch_expr)
 
+        try:
+            result = solver.check()
         except Exception as e:
-            print("true branch Exception:", e)
+            print(block, "true branch Exception:", e)
+
+        if result == unsat:
+            print("infeasible path on", block, 'true branch(jump),', true_branch_expr)
+        elif not on_scc_border_or_loop_limit(
+                scc_graph, scc, block, true_dest, true_state):
+            visited_edge[(block, true_dest)] = \
+                    visited_edge.get(
+                            (block, true_dest), 0) + 1
+            sym_exec_block(scc_graph, scc,
+                    true_dest, true_state)
+            visited_edge[(block, true_dest)] -= 1
+
 
         solver.pop()
         solver.push()
+
+        false_branch_expr  = Not(branch_expr)
+
+        # false_branch_expr = simplify(false_branch_expr)
+        false_state = state.copy()
+        false_state.add_constraint(false_branch_expr)
         solver.add(false_branch_expr)
 
         try:
-            if solver.check() == unsat:
-                print("infeasible path on", false_branch_expr)
-            elif not on_scc_border_or_loop_limit(
-                    scc_graph, scc, block, false_dest, state):
-                visited_edge[(block, false_dest)] = \
-                        visited_edge.get(
-                                (block, false_dest), 0) + 1
-                sym_exec_block(scc_graph, scc,
-                        false_dest, state.copy(false_branch_expr))
-                visited_edge[(block, false_dest)] -= 1
+            result = solver.check()
         except Exception as e:
-            print("false branch Exception:", e)
+            print(block, "false branch Exception:", e)
+
+        if result == unsat:
+            print("infeasible path on", block, 'false branch(falls to)', false_branch_expr)
+        elif not on_scc_border_or_loop_limit(
+                scc_graph, scc, block, false_dest, state):
+            visited_edge[(block, false_dest)] = \
+                    visited_edge.get(
+                            (block, false_dest), 0) + 1
+            sym_exec_block(scc_graph, scc,
+                    false_dest, false_state)
+            visited_edge[(block, false_dest)] -= 1
 
         solver.pop()
 
@@ -162,7 +181,6 @@ def sym_exec_block(scc_graph, scc, block, state):
                 scc_graph, scc, block, dest, state):
             visited_edge[(block, dest)] = \
                     visited_edge.get((block, dest), 0) + 1
-            visited_edge.add((block, dest))
             sym_exec_block(scc_graph, scc, dest, state)
             visited_edge[(block, dest)] -= 1
 
@@ -187,7 +205,7 @@ def sym_exec_ins(instr, state):
             calculate_gas(opcode, state, solver)
 
     state.gas += gas_increment
-    state.gas_constraints.append(gas_constraints)
+    if gas_constraints: state.gas_constraints.append(gas_constraints)
 
     #
     #  0s: Stop and Arithmetic Operations

@@ -16,6 +16,7 @@ class MachineState():
         self.variables = {}
         self.balance = {}
         self.Ia = {} # STORAGE?
+        self.path = []
 
         self.sender_address = BitVec("Is", 256)
         self.receiver_address = BitVec("Ia", 256)
@@ -42,10 +43,28 @@ class MachineState():
         self.variables["IH_d"] = self.currentDifficulty
         self.variables["IH_l"] = self.currentGasLimit
 
-    def add_constraint(constraint):
-        self.constraint.append(constraint)
+    def __repr__(self):
+        #return '''<MachineState@{} gas:{}> stk:{}'''.format(self.pc, self.gas, self.stack)
+        return '''<MachineState@{} gas:{}>'''.format(self.pc, self.gas)
+# stack{}
+# mem:{}
+# memory:{}
+# storage:{}
+# path_constraints:{}
+# gas_constraints:{}
+# '''.format(self.pc,
+#         self.gas,
+#         self.stack,
+#         self.mem,
+#         self.memory,
+#         self.Ia,
+#         self.constraints,
+#         self.gas_constraints)
 
-    def copy(self, constraint = None):
+    def add_constraint(self, constraint):
+        self.constraints.append(constraint)
+
+    def copy(self):
         instance = MachineState(
                 self.gas,
                 self.pc,
@@ -59,7 +78,7 @@ class MachineState():
         instance.balance   = self.balance.copy()
         instance.memory    = self.memory.copy()
         instance.Ia   = self.Ia.copy()
-        if constraint: instance.add_constraint(constraint)
+        instance.path = self.path.copy()
         return instance
 
 class SCCGraph():
@@ -87,9 +106,8 @@ class SCCGraph():
                 [MachineState(0, 0, {}, 0, [])]
 
         self.unvisited_sccs   = set(self.sccs)
-        self.unvisited_blocks = cfg.basic_blocks
+        self.unvisited_blocks = set(cfg.basic_blocks)
         self.states           = {}
-
 
     def dfs(self, cfg, cur, edgeOf, callback):
         self.visited.add(cur)

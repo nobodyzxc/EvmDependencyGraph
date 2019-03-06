@@ -1,0 +1,2 @@
+WARNING:root:You are using evm version 1.8.15. The supported version is 1.7.3
+CRITICAL:root:Solidity compilation failed. Please use -ce flag to see the detail.

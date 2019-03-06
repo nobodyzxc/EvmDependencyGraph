@@ -33,6 +33,7 @@ import abc
 import csv
 import logging
 import os
+import pprint
 
 # import src.cfg as cfg
 # import src.function as function
@@ -119,7 +120,7 @@ class CFGDotExporter(Exporter):
                         filldict[hex(bb.start.pc)] = "yellow"
 
         for block in sccg.unvisited_blocks:
-            filldict[hex(block.start.pc)] = ''
+            filldict[hex(block.start.pc)] = 'black'
 
         nx.set_node_attributes(G, "fillcolor", filldict)
 
@@ -139,15 +140,21 @@ class CFGDotExporter(Exporter):
             block_content = ""
 
             if block in sccg.scc_set[block].states:
-                block_content += "init state:\n{}\n".format( \
-                        sccg.scc_set[block].states[block])
+                block_content += "entry state:\n{}\n".format(pprint.pformat( \
+                        sorted(sccg.scc_set[block].states[block], key=lambda m: m.gas)))
+                        #sccg.scc_set[block].states[block][0].constraints)
 
             block_content += "\n\n{}\n\n".format(
                     '\n'.join('{}:{}'.format(hex(ins.pc),
                         str(ins)) for ins in block.instructions))
-    
+
             if block in sccg.states:
                 block_content += "final state:\n{}\n".format(sccg.states[block])
+
+            for vsa in sccg.cfg.vsa:
+                if block.end.pc in vsa.stacksOut:
+                    block_content += "\nVSA:\n{}\n".format(str(vsa.stacksOut[block.end.pc]))
+                    print("\nVSA[{}]:\n{}\n".format(block.end.pc, str(vsa.stacksOut[block.end.pc])))
 
             block_strings[hex(block.start.pc)] = block_string + block_content
         nx.set_node_attributes(G, "tooltip", block_strings)
@@ -265,7 +272,8 @@ def svg_to_html(svg: str, function_extractor = None) -> str:
     for line in lines[3:]:
         page.append(line)
 
-    page.append("""<textarea id="infobox" disabled=true rows=40 cols=80></textarea>""")
+    # hide textarea
+    # page.append("""<textarea id="infobox" disabled=true rows=40 cols=80></textarea>""")
 
     # Create a dropdown list of functions if there are any.
     if function_extractor is not None:
@@ -404,3 +412,119 @@ def svg_to_html(svg: str, function_extractor = None) -> str:
               """)
 
     return "\n".join(page)
+
+class DGDotExporter(Exporter):
+    """
+    Generates a dot file for drawing a pretty picture of the given CFG.
+
+    Args:
+      dg: source CFG to be exported to dot format.
+    """
+
+    def __init__(self, dg):
+        super().__init__(dg)
+
+    def export(self, out_filename: str = "dg.dot"):
+        """
+        Export the DG to a dot file.
+
+        Certain blocks will have coloured outlines:
+          Green: contains a RETURN operation;
+          Blue: contains a STOP operation;
+          Red: contains a THROW, THROWI, INVALID, or missing operation;
+          Purple: contains a SELFDESTRUCT operation;
+          Orange: contains a CALL, CALLCODE, or DELEGATECALL operation;
+          Brown: contains a CREATE operation.
+
+        A node with a red fill indicates that its stack size is large.
+
+        Args:
+          out_filename: path to the file where dot output should be written.
+                        If the file extension is a supported image format,
+                        attempt to generate an image using the `dot` program,
+                        if it is in the user's `$PATH`.
+        """
+        import networkx as nx
+
+        dg = self.source
+
+        G = dg.nx_graph()
+
+        # Colour-code the graph.
+        # returns = {hex(block.start.pc): "green" for block in sccg.cfg.basic_blocks
+        #            if block.end.name == 'RETURN'}
+        # stops = {hex(block.start.pc): "blue" for block in sccg.cfg.basic_blocks
+        #         if block.end.name == 'STOP'}
+        # throws = {hex(block.start.pc): "red" for block in sccg.cfg.basic_blocks
+        #           if block.end.name in ('INVALID', 'THROW', 'THROWI', 'REVERT')}
+        # suicides = {hex(block.start.pc): "purple" for block in sccg.cfg.basic_blocks
+        #             if block.end.name == 'SELFDESTRUCT'}
+        # color_dict = {**returns, **stops, **throws, **suicides}
+        # nx.set_node_attributes(G, "color", color_dict)
+
+        # filldict = {hex(b.start.pc): "white" \
+        #         for b in sccg.cfg.basic_blocks if b not in sccg.states}
+
+        # for scc in sccg.sccs:
+        #     if len(scc.vertices) > 1:
+        #         for bb in scc.vertices:
+        #             if bb not in filldict:
+        #                 filldict[hex(bb.start.pc)] = "yellow"
+
+        # for block in sccg.unvisited_blocks:
+        #     filldict[hex(block.start.pc)] = 'black'
+
+        # nx.set_node_attributes(G, "fillcolor", filldict)
+
+        # nx.set_node_attributes(G, "style", "filled")
+
+        # Annotate each node with its basic block's internal data for later display
+        # if rendered in html.
+        nx.set_node_attributes(G, "id", {hex(pc): hex(pc) for pc in dg})
+
+        block_strings = {}
+
+        for pc in dg:
+
+            block_string = '{}\n{}\n\n'.format(
+                    hex(pc), dg.instructions[pc])
+
+            block_content = ''
+
+            block_strings[hex(pc)] = block_string + block_content
+
+        nx.set_node_attributes(G, "tooltip", block_strings)
+
+        # Write non-dot files using pydot and Graphviz
+        if "." in out_filename and not out_filename.endswith(".dot"):
+            pdG = nx.nx_pydot.to_pydot(G)
+            extension = out_filename.split(".")[-1]
+
+            # If we're producing an html file, write a temporary svg to build it from
+            # and then delete it.
+            if extension == "html":
+                html = svg_to_html(pdG.create_svg().decode("utf-8"))
+                # cfg.function_extractor
+                if not out_filename.endswith(".html"):
+                    out_filename += ".html"
+                with open(out_filename, 'w') as page:
+                    logging.info("Drawing CFG image to '%s'.", out_filename)
+                    page.write(html)
+            else:
+                pdG.set_margin(0)
+                pdG.write(out_filename, format=extension)
+
+        # Otherwise, write a regular dot file using pydot
+        else:
+            try:
+                if out_filename == "":
+                    out_filename = "cfg.html"
+                nx.nx_pydot.write_dot(G, out_filename)
+                logging.info("Drawing CFG image to '%s'.", out_filename)
+            except:
+                logging.info("Graphviz missing. Falling back to dot.")
+                if out_filename == "":
+                    out_filename = "cfg.dot"
+                nx.nx_pydot.write_dot(G, out_filename)
+                logging.info("Drawing CFG image to '%s'.", out_filename)
+

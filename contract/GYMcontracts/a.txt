@@ -1,0 +1,211 @@
+WARNING:root:You are using evm version 1.8.15. The supported version is 1.7.3
+INFO:root:contract ./Gym.sol:Gym:
+INFO:symExec:	============ Results ===========
+INFO:symExec:	  EVM Code Coverage: 			 76.8%
+INFO:symExec:	  Integer Underflow: 			 True
+INFO:symExec:	  Integer Overflow: 			 True
+INFO:symExec:	  Parity Multisig Bug 2: 		 False
+INFO:symExec:	  Callstack Depth Attack Vulnerability:  False
+INFO:symExec:	  Transaction-Ordering Dependence (TOD): False
+INFO:symExec:ALL PATH CONDITIONS
+INFO:symExec:PATH 1: [0 <= Iv, init_Is >= Iv, 0 <= init_Ia]
+INFO:symExec:	  Timestamp Dependency: 		 False
+INFO:symExec:	  Re-Entrancy Vulnerability: 		 False
+INFO:symExec:./Gym.sol:7:11: Warning: Integer Underflow.
+    string public name;
+    ^
+Spanning multiple lines.
+./Gym.sol:8:12: Warning: Integer Underflow.
+    string public symbol;
+    ^
+Spanning multiple lines.
+INFO:symExec:./Gym.sol:27:23: Warning: Integer Overflow.
+    // @pragma _value token
+./Gym.sol:29:65: Warning: Integer Overflow.
+    function redeem(uint256 _value, address _store, string _info) public returns (bool) {
+    ^
+Spanning multiple lines.
+INFO:symExec:	====== Analysis Completed ======
+block number: 161
+instruction count: 3003
+path count: 45
+max cost path: [0, 13, 65, 76, 87, 512, 524, 2167, 2228, 2306, 2445, 6086, 6100, 2527, 6111, 6131, 2676, 6086, 6100, 2886, 619]
+INFO:root:contract ./math/SafeMath.sol:SafeMath:
+INFO:symExec:	============ Results ===========
+INFO:symExec:	  EVM Code Coverage: 			 100.0%
+INFO:symExec:	  Integer Underflow: 			 False
+INFO:symExec:	  Integer Overflow: 			 False
+INFO:symExec:	  Parity Multisig Bug 2: 		 False
+INFO:symExec:	  Callstack Depth Attack Vulnerability:  False
+INFO:symExec:	  Transaction-Ordering Dependence (TOD): False
+INFO:symExec:ALL PATH CONDITIONS
+INFO:symExec:PATH 1: [0 <= Iv, init_Is >= Iv, 0 <= init_Ia]
+INFO:symExec:	  Timestamp Dependency: 		 False
+INFO:symExec:	  Re-Entrancy Vulnerability: 		 False
+INFO:symExec:	====== Analysis Completed ======
+block number: 1
+instruction count: 10
+path count: 1
+max cost path: [0]
+INFO:root:contract ./ownership/Ownable.sol:Ownable:
+INFO:symExec:	============ Results ===========
+INFO:symExec:	  EVM Code Coverage: 			 99.5%
+INFO:symExec:	  Integer Underflow: 			 False
+INFO:symExec:	  Integer Overflow: 			 False
+INFO:symExec:	  Parity Multisig Bug 2: 		 False
+INFO:symExec:	  Callstack Depth Attack Vulnerability:  False
+INFO:symExec:	  Transaction-Ordering Dependence (TOD): False
+INFO:symExec:ALL PATH CONDITIONS
+INFO:symExec:PATH 1: [0 <= Iv, init_Is >= Iv, 0 <= init_Ia]
+INFO:symExec:	  Timestamp Dependency: 		 False
+INFO:symExec:	  Re-Entrancy Vulnerability: 		 False
+INFO:symExec:	====== Analysis Completed ======
+block number: 19
+instruction count: 210
+path count: 8
+max cost path: [0, 13, 65, 168, 180, 272, 363, 423, 233]
+INFO:root:contract ./token/BasicToken.sol:BasicToken:
+INFO:symExec:	============ Results ===========
+INFO:symExec:	  EVM Code Coverage: 			 99.6%
+INFO:symExec:	  Integer Underflow: 			 False
+INFO:symExec:	  Integer Overflow: 			 True
+INFO:symExec:	  Parity Multisig Bug 2: 		 False
+INFO:symExec:	  Callstack Depth Attack Vulnerability:  False
+INFO:symExec:	  Transaction-Ordering Dependence (TOD): False
+INFO:symExec:ALL PATH CONDITIONS
+INFO:symExec:PATH 1: [0 <= Iv, init_Is >= Iv, 0 <= init_Ia]
+INFO:symExec:	  Timestamp Dependency: 		 False
+INFO:symExec:	  Re-Entrancy Vulnerability: 		 False
+INFO:symExec:./token/BasicToken.sol:29:27: Warning: Integer Overflow.
+    emit Transfer(msg.sender, _
+Integer Overflow occurs if:
+    balances[_to] = 66856184261385214108408597654402785422430169472278770250914080072048199204049
+    _value = 57938452453005874615280298637860938028508748633530783054289495821861177524225
+    balances[msg.sender] = 57938452453005874615280298637860938028508748633530783054289495821861177524225
+    _to = 1461501637330902918203684832716283019655932542975
+INFO:symExec:	====== Analysis Completed ======
+block number: 33
+instruction count: 456
+path count: 11
+max cost path: [0, 13, 65, 76, 222, 234, 402, 463, 541, 950, 964, 623, 975, 995, 772, 297]
+INFO:root:contract ./token/StandardToken.sol:StandardToken:
+INFO:symExec:	============ Results ===========
+INFO:symExec:	  EVM Code Coverage: 			 99.9%
+INFO:symExec:	  Integer Underflow: 			 False
+INFO:symExec:	  Integer Overflow: 			 True
+INFO:symExec:	  Parity Multisig Bug 2: 		 False
+INFO:symExec:	  Callstack Depth Attack Vulnerability:  False
+INFO:symExec:	  Transaction-Ordering Dependence (TOD): False
+INFO:symExec:ALL PATH CONDITIONS
+INFO:symExec:PATH 1: [0 <= Iv, init_Is >= Iv, 0 <= init_Ia]
+INFO:symExec:	  Timestamp Dependency: 		 False
+INFO:symExec:	  Re-Entrancy Vulnerability: 		 False
+INFO:symExec:./token/StandardToken.sol:26:49: Warning: Integer Overflow.
+  function transferFrom(address _from, address _to, u
+Integer Overflow occurs if:
+    _value = 88964353373763045885795690415161928411490039952130836214028735836176136306767
+    balances[_to] = 31011907737879846905537130462912155126960895589245379915617170833225066774705
+    allowed[_from][msg.sender] = 88964353373763045885795690415161928411490039952130836214028735836176136306767
+    balances[_from] = 88964353373763045885795690415161928411490039952130836214028735836176136306767
+    _to = 1461501637330902918203684832716283019655932542975
+INFO:symExec:	====== Analysis Completed ======
+block number: 77
+instruction count: 1635
+path count: 27
+max cost path: [0, 13, 65, 76, 291, 303, 1181, 1242, 1320, 1459, 4061, 4075, 1541, 4086, 4106, 1690, 4061, 4075, 1900, 398]
+236 >> 's JUMP : 1761
+380 >> 's JUMP : 1919
+1919 >> 's JUMP : 443
+481 >> 's JUMP : 2161
+2161 >> 's JUMP : 490
+524 >> 's JUMP : 2167
+2445 >> 's JUMP : 6086
+6100 >> 's JUMP : 2527
+2527 >> 's JUMP : 6111
+6131 >> 's JUMP : 2676
+2676 >> 's JUMP : 6086
+6100 >> 's JUMP : 2886
+2886 >> 's JUMP : 619
+657 >> 's JUMP : 3126
+3220 >> 's JUMP : 6111
+6131 >> 's JUMP : 3241
+3241 >> 's JUMP : 6111
+726 >> 's JUMP : 3524
+3618 >> 's JUMP : 6086
+6100 >> 's JUMP : 3734
+3734 >> 's JUMP : 6086
+6100 >> 's JUMP : 3856
+3856 >> 's JUMP : 757
+795 >> 's JUMP : 3922
+4195 >> 's JUMP : 6086
+6100 >> 's JUMP : 4214
+4343 >> 's JUMP : 858
+4061 >> 's JUMP : 4343
+4343 >> 's JUMP : 858
+896 >> 's JUMP : 4579
+4579 >> 's JUMP : 949
+983 >> 's JUMP : 4652
+4652 >> 's JUMP : 992
+1070 >> 's JUMP : 4690
+1214 >> 's JUMP : 4848
+4848 >> 's JUMP : 6141
+6280 >> 's JUMP : 6086
+6100 >> 's JUMP : 6362
+6362 >> 's JUMP : 6111
+6131 >> 's JUMP : 6511
+6511 >> 's JUMP : 4860
+4860 >> 's JUMP : 1277
+1486 >> 's JUMP : 5099
+5099 >> 's JUMP : 6111
+6131 >> 's JUMP : 5244
+5244 >> 's JUMP : 1549
+1587 >> 's JUMP : 5607
+5607 >> 's JUMP : 1672
+1706 >> 's JUMP : 5742
+5894 >> 's JUMP : 1759
+93 >> 's JUMP : 235
+235 >> 's JUMP : 102
+180 >> 's JUMP : 272
+423 >> 's JUMP : 233
+104 >> 's JUMP : 323
+323 >> 's JUMP : 113
+147 >> 's JUMP : 329
+329 >> 's JUMP : 200
+234 >> 's JUMP : 402
+541 >> 's JUMP : 950
+964 >> 's JUMP : 623
+623 >> 's JUMP : 975
+995 >> 's JUMP : 772
+772 >> 's JUMP : 297
+159 >> 's JUMP : 933
+933 >> 's JUMP : 222
+260 >> 's JUMP : 1175
+1175 >> 's JUMP : 269
+303 >> 's JUMP : 1181
+1459 >> 's JUMP : 4061
+4075 >> 's JUMP : 1541
+1541 >> 's JUMP : 4086
+4106 >> 's JUMP : 1690
+1690 >> 's JUMP : 4061
+4075 >> 's JUMP : 1900
+1900 >> 's JUMP : 398
+436 >> 's JUMP : 2140
+2413 >> 's JUMP : 4061
+4075 >> 's JUMP : 2432
+2561 >> 's JUMP : 499
+2279 >> 's JUMP : 2561
+2561 >> 's JUMP : 499
+537 >> 's JUMP : 2797
+2797 >> 's JUMP : 590
+624 >> 's JUMP : 2870
+3009 >> 's JUMP : 4061
+4075 >> 's JUMP : 3091
+3091 >> 's JUMP : 4086
+4106 >> 's JUMP : 3240
+3240 >> 's JUMP : 687
+725 >> 's JUMP : 3418
+3418 >> 's JUMP : 4086
+4106 >> 's JUMP : 3563
+3563 >> 's JUMP : 788
+826 >> 's JUMP : 3926
+3926 >> 's JUMP : 911
