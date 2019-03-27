@@ -7,21 +7,39 @@ from exporter import DGDotExporter
 
 parser = ArgumentParser()
 parser.add_argument("src", help="source file name")
+parser.add_argument( "-b",   "--bytecode",
+                    help="read bytecode in source instead of solidity file.",
+                    action="store_true")
 
 args = parser.parse_args()
 
-contracts = compile_contracts(args.src)
+if args.bytecode:
 
-for filename, bytecode in contracts:
+    filename = args.src
 
-    print(filename, ':')
+    with open(filename, 'r') as f:
 
-    cfg = CFG(bytecode)
-    DGDotExporter(cfg.dg).\
-    export(filename[:filename.find('.')] + '.html')
-    for ins in cfg.instructions:
-        print(ins.pc, ins.name)
-    '''
-    dotfile = cfg.output_to_dot(filename)
-    output_graph(dotfile, filename[:filename.find('.')])
-    '''
+        print(filename, ':')
+        bytecode = f.read()
+        cfg = CFG(bytecode)
+        DGDotExporter(cfg.dg).\
+        export(filename[:filename.find('.')] + '.html')
+        for ins in cfg.instructions:
+            print(ins.pc, ins.name)
+
+else:
+    contracts = compile_contracts(args.src)
+
+    for filename, bytecode in contracts:
+
+        print(filename, ':')
+
+        cfg = CFG(bytecode)
+        DGDotExporter(cfg.dg).\
+        export(filename[:filename.find('.')] + '.html')
+        for ins in cfg.instructions:
+            print(ins.pc, ins.name)
+        '''
+        dotfile = cfg.output_to_dot(filename)
+        output_graph(dotfile, filename[:filename.find('.')])
+        '''

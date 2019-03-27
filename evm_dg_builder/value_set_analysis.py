@@ -180,7 +180,7 @@ class Stack(object):
 
     def __init__(self):
         self._elems = []
-        self._insts = []
+        self._insts = [[]]
 
     def copy_stack(self, stack):
         '''
@@ -190,7 +190,7 @@ class Stack(object):
             Stack: stack to copy
         '''
         self._elems = [x.get_copy() for x in stack.get_elems()]
-        self._insts = [x.get_copy() for x in stack.get_insts()]
+        self._insts = [x.copy() for x in stack.get_insts()]
 
     def push(self, elem):
         '''
@@ -208,12 +208,12 @@ class Stack(object):
         self._elems.append(elem)
 
     def ipush(self, inst):
-        if not isinstance(inst, AbsStackElem):
-            st = AbsStackElem()
-            st.append(inst)
-            inst = st
-
-        self._insts.append(inst)
+        #if not isinstance(inst, AbsStackElem):
+        #    st = AbsStackElem()
+        #    st.append(inst)
+        #    inst = st
+        for i, s in enumerate(self._insts):
+            self._insts[i].append(inst)
 
     def insert(self, elem):
         if not isinstance(elem, AbsStackElem):
@@ -224,12 +224,13 @@ class Stack(object):
         self._elems.insert(0, elem)
 
     def iinsert(self, inst):
-        if not isinstance(inst, AbsStackElem):
-            st = AbsStackElem()
-            st.append(inst)
-            inst = st
+        #if not isinstance(inst, AbsStackElem):
+        #    st = AbsStackElem()
+        #    st.append(inst)
+        #    inst = st
 
-        self._insts.insert(0, inst)
+        for i, s in enumerate(self._insts):
+            self._insts[i].insert(0, inst)
 
     def pop(self):
         '''
@@ -244,10 +245,17 @@ class Stack(object):
 
     def ipop(self):
 
-        if not self._insts:
-            self.ipush(None)
+        for i, s in enumerate(self._insts):
+            if not self._insts[i]:
+                self._insts[i].append(None)
+        return [self._insts[i].pop() for i, s in enumerate(self._insts)]
 
-        return self._insts.pop()
+    def ipopOf(self, idx):
+
+        if not self._insts[idx]:
+            self._insts[idx].append(None)
+        return self._insts[idx].pop()
+
 
     def swap(self, n):
         '''
@@ -276,20 +284,21 @@ class Stack(object):
         Args:
             n (int)
         '''
-        if len(self._insts) >= (n+1):
-            inst = self._insts[-1-n]
-            top = self.itop()
-            self._insts[-1] = inst
-            self._insts[-1-n] = top
+        for i, s in enumerate(self._insts):
+            if len(self._insts[i]) >= (n+1):
+                inst = self._insts[i][-1-n]
+                top = self.itopOf(i)
+                self._insts[i][-1] = inst
+                self._insts[i][-1-n] = top
 
-        # if we swap more than the size of the stack,
-        # we can assume that elements are missing on the stack
-        else:
-            top = self.itop()
-            missing_insts = n - len(self._insts) + 1
-            for _ in range(0, missing_elems):
-                self.iinsert(None)
-            self._insts[-1-n] = top
+            # if we swap more than the size of the stack,
+            # we can assume that elements are missing on the stack
+            else:
+                top = self.itopOf(i)
+                missing_insts = n - len(self._insts[i]) + 1
+                for _ in range(0, missing_elems):
+                    self.iinsert(None)
+                self._insts[i][-1-n] = top
 
 
     def dup(self, n):
@@ -303,10 +312,11 @@ class Stack(object):
 
     def idup(self, n):
 
-        if len(self._insts) >= n:
-            self.ipush(self._insts[-n])
-        else:
-            self.ipush(None)
+        for i, s in enumerate(self._insts):
+            if len(self._insts[i]) >= n:
+                self._insts[i].append(self._insts[i][-n])
+            else:
+                self._insts[i].append(None)
 
     def get_elems(self):
         '''
@@ -355,18 +365,8 @@ class Stack(object):
 
         insts1 = self.get_insts()
         insts2 = stack.get_insts()
-        # We look for the longer stack
-        if len(insts2) <= len(insts1):
-            longStack = insts1
-            shortStack = insts2
-        else:
-            longStack = insts2
-            shortStack = insts1
-        longStack = [x.get_copy() for x in longStack]
-        # Merge instents
-        for i in range(0, len(shortStack)):
-            longStack[-(i+1)] = longStack[-(i+1)].merge(shortStack[-(i+1)])
-        newSt.set_insts(longStack)
+        insts = [x.copy() for x in insts1] + [x.copy() for x in insts2]
+        newSt.set_insts(insts)
 
         return newSt
 
@@ -397,15 +397,26 @@ class Stack(object):
             self.push(None)
         return self._elems[-1]
 
+    def itopOf(self, idx):
+
+        if not self._insts[idx]:
+            self._insts[idx].append(None)
+
+        return self._insts[idx][-1]
+
+
+
     def itop(self):
         '''
             Return the element at the top (without pop)
         Returns:
             AbsStackElem
         '''
-        if not self._insts:
-            self.ipush(None)
-        return self._insts[-1]
+        for i, s in enumerate(self._insts):
+            if not self._insts[i]:
+                self._insts[i].append(None)
+
+        return [s[-1] for s in self._insts]
 
     def __str__(self):
         '''
@@ -516,11 +527,14 @@ class StackValueAnalysis(object):
             v1 = stack.pop()
             v2 = stack.pop()
             stack.push(v1.absAnd(v2))
-            v1 = stack.ipop()
-            v2 = stack.ipop()
-            stack.ipush(ins)
-            for args in itertools.product(v1.get_vals(), v2.get_vals()):
-                self.dg.add_edges(ins, list(args))
+
+            for i, s in enumerate(stack._insts):
+                v1 = stack.ipopOf(i)
+                v2 = stack.ipopOf(i)
+                stack._insts[i].append(ins)
+                self.dg.add_edges(ins, [v1, v2])
+                # mark?
+
         # For all the other opcode: remove
         # the pop elements, and push None elements
         # if JUMP or JUMPI saves the last value before poping
@@ -530,14 +544,13 @@ class StackValueAnalysis(object):
             for _ in range(0, n_pop):
                 stack.pop()
 
-            it = itertools.product(*[stack.ipop().get_vals() for _ in range(0, n_pop)]) # need pop first then push
+            for i, s in enumerate(stack._insts):
+                args = [stack.ipopOf(i) for _ in range(0, n_pop)]
+                self.dg.add_edges(ins, args)
 
             for _ in range(0, n_push):
                 stack.push(None)
                 stack.ipush(ins)
-
-            for args in it:
-                self.dg.add_edges(ins, list(args))
 
         return stack
 
