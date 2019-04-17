@@ -32,14 +32,21 @@ else:
 
     for filename, bytecode in contracts:
 
-        print(filename, ':')
+        print(filename)
 
         cfg = CFG(bytecode)
+        htmlname = filename[:filename.find('.')] + '_' + filename[filename.find(':') + 1:]+ '.html'
+        print('export as', htmlname)
         DGDotExporter(cfg.dg).\
-        export(filename[:filename.find('.')] + '.html')
-        for ins in cfg.instructions:
-            print(ins.pc, ins.name)
+                export(htmlname)
+        #for ins in cfg.instructions:
+        #    print(ins.pc, ins.name)
         '''
         dotfile = cfg.output_to_dot(filename)
         output_graph(dotfile, filename[:filename.find('.')])
         '''
+        #while True:
+        #    #print(cfg.dg.graph)
+        #    pc = int(input('input pc> '))
+        #    if pc == -1: break
+        #    print(cfg.dg.graph[pc].argNodes)

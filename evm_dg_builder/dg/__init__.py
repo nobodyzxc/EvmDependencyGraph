@@ -11,7 +11,7 @@ class Node(object):
         self.pc = pc
         self.name = opcode
         self.toNodes = set()  # set of addr
-        self.argNodes = set() # set of (addr, addr)
+        self.argNodes = set() # set of (addr, addr, ...)
 
     def add_dependency(self, insts):
         addrs = [i.pc if i else -1 for i in insts]
@@ -24,6 +24,7 @@ class DG(object):
         self.graph = {}
         self.cfg = cfg
         self.color = dict()
+        self.clr = dict()
 
     def __getitem__(self, key):
         return self.graph[key];
@@ -51,16 +52,25 @@ class DG(object):
         color = randColor()
         for i in insts:
             self.color[(ins.pc, i.pc)] = color
+        self.clr[((ins.pc, tuple([i.pc if i else -1 for i in insts])))] = color
 
     def nx_graph(self):
 
-        g = nx.DiGraph()
+        #g = nx.DiGraph()
+        g = nx.MultiDiGraph()
 
         g.add_nodes_from(hex(pc) for pc in self.graph)
 
+        #for pc in self.graph:
+        #    for dp in self.graph[pc].toNodes:
+        #        g.add_edge(hex(pc), hex(dp), color=self.color[(pc, dp)])
+
         for pc in self.graph:
-            for dp in self.graph[pc].toNodes:
-                g.add_edge(hex(pc), hex(dp), color=self.color[(pc, dp)])
+            for arg in self.graph[pc].argNodes:
+                for dp in arg:
+                    #if pc == 1260: input("{}, {}, {}".format(arg, dp, self.clr[(pc, arg)]))
+                    g.add_edge(hex(pc), hex(dp), color=self.clr[(pc, arg)])
+
 
         for bb in self.cfg.basic_blocks:
             #if len(bb.instructions) >= 2:
