@@ -534,7 +534,6 @@ class StackValueAnalysis(object):
                 stack._insts[i].append(ins)
                 self.dg.add_edges(ins, [v1, v2])
                 # mark?
-
         # For all the other opcode: remove
         # the pop elements, and push None elements
         # if JUMP or JUMPI saves the last value before poping

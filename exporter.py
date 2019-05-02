@@ -480,18 +480,18 @@ class DGDotExporter(Exporter):
 
         # Annotate each node with its basic block's internal data for later display
         # if rendered in html.
-        nx.set_node_attributes(G, "id", {hex(pc): hex(pc) for pc in dg})
+        nx.set_node_attributes(G, "id", {dg.name_of(pc): hex(pc) for pc in dg})
 
         block_strings = {}
 
         for pc in dg:
 
             block_string = '{}\n{}\n\n'.format(
-                    hex(pc), dg.instructions[pc])
+                    dg.name_of(pc), dg.instructions[pc])
 
             block_content = ''
 
-            block_strings[hex(pc)] = block_string + block_content
+            block_strings[dg.name_of(pc)] = block_string + block_content
 
         nx.set_node_attributes(G, "tooltip", block_strings)
 

@@ -32,6 +32,9 @@ class DG(object):
     def __iter__(self):
         for k in self.graph:
             yield k
+    
+    def name_of(self, addr):
+        return hex(addr) + ' ' + self.graph[addr].name
 
     @property
     def instructions(self):
@@ -59,7 +62,7 @@ class DG(object):
         #g = nx.DiGraph()
         g = nx.MultiDiGraph()
 
-        g.add_nodes_from(hex(pc) for pc in self.graph)
+        g.add_nodes_from(self.name_of(pc) for pc in self.graph)
 
         #for pc in self.graph:
         #    for dp in self.graph[pc].toNodes:
@@ -69,13 +72,21 @@ class DG(object):
             for arg in self.graph[pc].argNodes:
                 for dp in arg:
                     #if pc == 1260: input("{}, {}, {}".format(arg, dp, self.clr[(pc, arg)]))
-                    g.add_edge(hex(pc), hex(dp), color=self.clr[(pc, arg)])
+                    g.add_edge(self.name_of(pc),
+                                self.name_of(dp),
+                                color=self.clr[(pc, arg)])
 
 
         for bb in self.cfg.basic_blocks:
             #if len(bb.instructions) >= 2:
             #    g.add_edge(hex(bb.start.pc), hex(bb.instructions[1].pc), style='dashed')
             for obb in bb.all_outgoing_basic_blocks:
-                g.add_edge(hex(bb.end.pc), hex(obb.start.pc), style='dotted')
+                if obb.start.pc not in self.graph:
+                    self.graph[obb.start.pc] = Node(obb.start.pc, obb.start.name)
+                if bb.end.pc not in self.graph:
+                    self.graph[bb.end.pc] = Node(bb.end.pc, bb.end.name)
+                g.add_edge(self.name_of(bb.end.pc),
+                        self.name_of(obb.start.pc),
+                        style='dotted')
 
         return g
