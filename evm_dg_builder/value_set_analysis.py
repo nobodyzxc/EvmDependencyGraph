@@ -484,6 +484,11 @@ class StackValueAnalysis(object):
 
         self._outgoing_basic_blocks = []
 
+        self.mstores =  self.dg.mstores
+        self.sstores =  self.dg.sstores
+        self.mloads = self.dg.mloads
+        self.sloads = self.dg.sloads
+
     def is_jumpdst(self, addr):
         '''
             Check that an instruction is a JUMPDEST
@@ -543,6 +548,7 @@ class StackValueAnalysis(object):
             for _ in range(0, n_pop):
                 stack.pop()
 
+            args = []
             for i, s in enumerate(stack._insts):
                 args = [stack.ipopOf(i) for _ in range(0, n_pop)]
                 self.dg.add_edges(ins, args)
@@ -550,6 +556,19 @@ class StackValueAnalysis(object):
             for _ in range(0, n_push):
                 stack.push(None)
                 stack.ipush(ins)
+
+            if op == 'MSTORE':
+                addr, val = args[0], args[1]
+                self.mstores.setdefault(ins.pc, []).append((addr, val))
+            elif op == 'MLOAD':
+                addr = args[0]
+                self.mloads.setdefault(ins.pc, []).append(addr)
+            elif op == 'SSTORE':
+                addr, val = args[0], args[1]
+                self.sstores.setdefault(ins.pc, []).append((addr, val))
+            elif op == 'SLOAD':
+                addr = args[0]
+                self.sloads.setdefault(ins.pc, []).append(addr)
 
         return stack
 
@@ -715,7 +734,6 @@ class StackValueAnalysis(object):
 
         dsts = [dests for (src, dests) in last_discovered_targets.items()]
         self._to_explore |= {self.cfg.basic_blocks_from_addr[item] for sublist in dsts for item in sublist}
-
 
     def analyze(self):
         self.cfg.compute_simple_edges(self._key)

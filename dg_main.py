@@ -35,12 +35,12 @@ else:
         print(filename)
 
         cfg = CFG(bytecode)
-        htmlname = filename[:filename.find('.')] + '_' + filename[filename.find(':') + 1:]+ '.html'
+        htmlname = 'dg_' + filename[:filename.find('.')] + '_' + filename[filename.find(':') + 1:]+ '.html'
         print('export as', htmlname)
         DGDotExporter(cfg.dg).\
                 export(htmlname)
-        #for ins in cfg.instructions:
-        #    print(ins.pc, ins.name)
+        for ins in cfg.instructions:
+            print(ins.pc, ins.name)
         '''
         dotfile = cfg.output_to_dot(filename)
         output_graph(dotfile, filename[:filename.find('.')])

@@ -29,4 +29,8 @@ for filename, bytecode in contracts:
     #     print(inst)
     scc_graph = SCCGraph(cfg)
     sym_exec_scc_graph(scc_graph, bytecode)
-    CFGDotExporter(scc_graph).export(filename[:filename.find('.')] + '.html')
+
+
+    htmlname = 'scc_' + filename[:filename.find('.')] + '_' + filename[filename.find(':') + 1:]+ '.html'
+
+    CFGDotExporter(scc_graph).export(htmlname)
