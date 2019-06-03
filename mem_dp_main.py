@@ -35,7 +35,7 @@ else:
         print(filename)
 
         cfg = CFG(bytecode)
-        htmlname = filename[:filename.find('.')] + '_' + filename[filename.find(':') + 1:]+ '_dg.html'
+        htmlname = 'dg_' + filename[:filename.find('.')] + '_' + filename[filename.find(':') + 1:]+ '.html'
         print('export as', htmlname)
         DGDotExporter(cfg.dg).\
                 export(htmlname)

@@ -35,6 +35,8 @@ class DG(object):
         self.memory = {} # key addr, val [ins]
         self.storage = {} # key addr, val [ins]
 
+        self.op_addr = {} # if const addr or [inst] dependt on
+
         # visited op
         self.visited = set()
 
@@ -146,7 +148,6 @@ class DG(object):
                             arglist = str(1 if a == b else 0)
                         else:
                             arglist = '{}[{}]({})'.format(op.name, hex(op.pc), ','.join(eargs))
-                        #    print('>>=', arglist)
                     else:
                         arglist = ','.join(eargs)
                         if '...' in arglist:
