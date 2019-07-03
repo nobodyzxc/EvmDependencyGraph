@@ -97,7 +97,7 @@ class CFG(object):
                 function.check_view()
                 function.check_pure()
 
-        self.dg.eval_addrs()
+        self.dg.build_dependency()
 
     @property
     def bytecode(self):
