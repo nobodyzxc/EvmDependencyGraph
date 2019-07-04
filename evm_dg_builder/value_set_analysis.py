@@ -484,11 +484,6 @@ class StackValueAnalysis(object):
 
         self._outgoing_basic_blocks = []
 
-        self.mstores =  self.dg.mstores
-        self.sstores =  self.dg.sstores
-        self.mloads = self.dg.mloads
-        self.sloads = self.dg.sloads
-
     def is_jumpdst(self, addr):
         '''
             Check that an instruction is a JUMPDEST
@@ -557,18 +552,7 @@ class StackValueAnalysis(object):
                 stack.push(None)
                 stack.ipush(ins)
 
-            if op == 'MSTORE':
-                addr, val = args[0], args[1]
-                self.mstores.setdefault(ins.pc, []).append((addr, val))
-            elif op == 'MLOAD':
-                addr = args[0]
-                self.mloads.setdefault(ins.pc, []).append(addr)
-            elif op == 'SSTORE':
-                addr, val = args[0], args[1]
-                self.sstores.setdefault(ins.pc, []).append((addr, val))
-            elif op == 'SLOAD':
-                addr = args[0]
-                self.sloads.setdefault(ins.pc, []).append(addr)
+            self.dg.record_ins(ins, args)
 
         return stack
 
