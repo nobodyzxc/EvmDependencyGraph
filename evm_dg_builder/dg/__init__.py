@@ -5,6 +5,8 @@ from itertools import product, chain
 
 flatten = lambda it: list(chain.from_iterable(it))
 
+hexlst = lambda s: sorted([hex(e) for e in s])
+
 indirects = ('MSTORE', 'SSTORE', 'MLOAD', 'SLOAD',
         'CALLVALUE', 'CALLER', 'CALLDATALOAD',
         'SHA3', 'CREATE', 'CALL', 'RETURN')
@@ -67,7 +69,7 @@ class DG(object):
         self.storage = {} # key addr, val [ins]
 
         self.op_addr = {} # if const addr or [inst] depend on
-        self.addr_dep = {}
+        self.rw_dep = {}
 
         # for op pcs
         self.visited = set()
@@ -131,8 +133,8 @@ class DG(object):
                         self.name_of(obb.start.pc),
                         style='dotted')
 
-        for lpc in self.addr_dep:
-            for spc in self.addr_dep[lpc]:
+        for lpc in self.rw_dep:
+            for spc in self.rw_dep[lpc]:
                 g.add_edge(self.name_of(lpc),
                         self.name_of(spc),
                         style='dashed')
@@ -236,17 +238,17 @@ class DG(object):
                     elif op.name == 'EQ':
                         val = 1 if eargs[0] == eargs[1] else 0
                     elif op.name in indreads:
-                        print("loads")
                         potential_consts.extend(self.inst_cons_val[op.pc])
-                        # wait to findout
                     else:
                         raise Exception("eval_op: need support {}".format(op.name))
-                    if val: potential_consts.append(val)
+                    if val != None: potential_consts.append(val)
                 absts = flatten(absts)
                 depended_absts.update(absts)
 
             visited.remove(op.pc)
-            if not potential_consts: potential_consts = [] # [None]
+
+            if not potential_consts and not depended_absts:
+                print("fuck, it's empty")
             return potential_consts, depended_absts
 
 
@@ -303,12 +305,11 @@ class DG(object):
                         depended_absts.add(op.pc)
                     else:
                         raise Exception("eval_op: need support {}".format(op.name))
-                    if val: potential_consts.append(val)
+                    if val != None: potential_consts.append(val)
                 absts = flatten(absts)
                 depended_absts.update(absts)
 
             visited.remove(op.pc)
-            if not potential_consts: potential_consts = [] # [None]
             return potential_consts, depended_absts
 
     def findBlock(self, pc):
@@ -341,15 +342,14 @@ class DG(object):
                 self.inst2block[pc] = bb
                 self.block2inst_sto.setdefault(bb, set()).add(pc)
 
-        #print('output:', self.inst2block)
-
         for writes in [self.mwrites, self.swrites]:
             for pc in writes:
                 for (addr, offset, val) in writes[pc]:
                     addr_cons, addr_abs = self.eval_op(addr, set(), 0)
                     off_cons, off_abs = self.eval_op(offset, set(), 0)
                     val_cons, val_abs = self.eval_op(val, set(), 0)
-                    if addr_cons and off_cons and val_cons: self.evaled.add(pc)
+                    if addr_cons and off_cons and val_cons:
+                        self.evaled.add(pc)
                     self.inst_cons_addr.setdefault(pc, set()).update(addr_cons)
                     self.inst_abst_addr.setdefault(pc, set()).update(addr_abs)
                     self.inst_cons_off.setdefault(pc, set()).update(off_cons)
@@ -368,16 +368,12 @@ class DG(object):
                     self.inst_cons_off.setdefault(pc, set()).update(off_cons)
                     self.inst_abst_off.setdefault(pc, set()).update(off_abs)
 
-    def build_dependency(self):
-        self.eval_addrs()
-        visited = set()
-
-
-        self.build_addr_dependency(self.swrites, self.sreads, self.block2inst_sto)
-        self.build_addr_dependency(self.mwrites, self.mreads, self.block2inst_mem)
+    def check(self):
         print()
+        print('evaled:', hexlst(self.evaled))
+        print('connected:', hexlst(set(self.rw_dep.keys())))
         not_evaled = set(self.inst2block.keys()).difference(self.evaled)
-        print('not evaled:', not_evaled)
+        print('not evaled:', hexlst(not_evaled))
         can, cant = set(), set()
         for pc in not_evaled:
             abst = self.inst_abst_addr[pc]
@@ -387,23 +383,36 @@ class DG(object):
                     not abst_o.difference(self.evaled) and \
                     not abst_v.difference(self.evaled):
                 can.add(pc)
-                #print(hex(pc), "can be re-eval")
-        #    else:
-        #        cant.add(pc)
-        #        #print(hex(pc), "cannot be re-eval")
-        print('can re-eval', set(hex(s) for s in can))
-        #print('cannot re-eval', set(hex(s) for s in cant))
-        #print('evaled:', self.evaled)
+        print('can re-eval', hexlst(can))
         print()
 
-    def build_addr_dependency(self, writes, reads, b2i):
+
+    def build_dependency(self):
+        self.eval_addrs()
+        visited = set()
+
+        visited = self.build_addr_dependency(self.swrites, self.sreads, \
+                                                self.block2inst_sto, visited)
+        self.check()
+
+        visited = self.build_addr_dependency(self.mwrites, self.mreads, \
+                                                self.block2inst_mem, visited)
+        self.check()
+
+    def build_addr_dependency(self, writes, reads, b2i, visited):
 
         cons_writes = []
-        visited_writes = set()
         for pc in writes:
-            if self.inst_cons_addr[pc] and self.inst_cons_val[pc]:
+            if pc not in visited \
+                and self.inst_cons_addr[pc] \
+                and self.inst_cons_off[pc] \
+                and self.inst_cons_val[pc]:
                 cons_writes.append(pc)
-                visited_writes.add(pc)
+                visited.add(pc)
+            else:
+                print(hex(pc), self.cfg.instructions_from_addr[pc].name, 'cannot dfs')
+                print(self.inst_cons_addr[pc], self.inst_cons_off[pc], self.inst_cons_val[pc])
+                print(self.inst_abst_addr[pc], self.inst_abst_off[pc], self.inst_abst_val[pc])
 
         while cons_writes:
 
@@ -412,35 +421,47 @@ class DG(object):
                 self.cfg_depend_dfs(pc, self.inst2block[pc], b2i, reads, set())
 
             for pc in writes:
-
+                if pc in visited: continue
                 abst = self.inst_abst_addr[pc]
                 abst_o = self.inst_abst_off[pc]
                 abst_v = self.inst_abst_val.get(pc, set())
                 if not abst.difference(self.evaled) and \
                         not abst_o.difference(self.evaled) and \
                         not abst_v.difference(self.evaled):
-                    print('re_eval write', hex(pc))
                     for (addr, offset, val) in writes[pc]:
-                        addr_cons, _ = self.re_eval_op(addr, set(), 0)
-                        off_cons, _ = self.re_eval_op(offset, set(), 0)
-                        val_cons, val_abst = self.re_eval_op(val, set(), 0)
-                        print(val.pc, val.name, self.re_eval_op(val, set(), 0))
-                        print(addr_cons, off_cons, val_cons, set(hex(s) for s in val_abst))
-                        self.inst_cons_addr.setdefault(pc, set()).update(addr_cons)
-                        self.inst_cons_off.setdefault(pc, set()).update(off_cons)
-                        self.inst_cons_val.setdefault(pc, set()).update(val_cons)
+                        addr_cons, addr_abs = self.re_eval_op(addr, set(), 0)
+                        off_cons, off_abs = self.re_eval_op(offset, set(), 0)
+                        val_cons, val_abs = self.re_eval_op(val, set(), 0)
 
-                if pc not in visited_writes \
+                        self.inst_cons_addr.setdefault(pc, set()).update(addr_cons)
+                        self.inst_abst_addr.setdefault(pc, set()).update(addr_abs)
+                        self.inst_cons_off.setdefault(pc, set()).update(off_cons)
+                        self.inst_abst_off.setdefault(pc, set()).update(off_abs)
+                        self.inst_cons_val.setdefault(pc, set()).update(val_cons)
+                        self.inst_abst_val.setdefault(pc, set()).update(val_abs)
+
+                        #print("rev c", hex(pc),
+                        #        hexlst(self.inst_cons_addr[pc]) ,
+                        #        hexlst(self.inst_cons_off[pc]) ,
+                        #        hexlst(self.inst_cons_val[pc]))
+                        #print("rev a", hex(pc),
+                        #        hexlst(self.inst_abst_addr[pc]) ,
+                        #        hexlst(self.inst_abst_off[pc]) ,
+                        #        hexlst(self.inst_abst_val[pc]))
+
+                        if not val_cons and not val_abs:
+                            print("fuck empty"), exit(0)
+
+
+                if pc not in visited \
                         and self.inst_cons_addr[pc] \
                         and self.inst_cons_off[pc] \
                         and self.inst_cons_val[pc]:
-                    print('add', pc)
                     cons_writes.append(pc)
-                    visited_writes.add(pc)
+                    visited.add(pc)
 
-        print('visited writes:', visited_writes)
-        print('not visited writes', set(writes.keys()).difference(visited_writes))
-
+        print('not visited writes', hexlst(set(writes.keys()).difference(visited)))
+        return visited
 
     def cfg_depend_dfs(self, spc, curb, b2i, reads, visited):
 
@@ -454,18 +475,18 @@ class DG(object):
             if pc in reads:
                 cons_r = self.inst_cons_addr[pc]
                 cons_ro = self.inst_cons_off[pc]
-                #print(cons_w , cons_wo , cons_r , cons_ro)
                 if cons_r and cons_ro:
                     if overlap(cons_w, cons_wo, cons_r, cons_ro):
                     #if cons_r.intersection(cons_w): # old ver. not consider offset
-                        self.addr_dep.setdefault(pc, set()).add(spc)
-                        #print("connected")
+                        self.evaled.add(pc)
+                        self.rw_dep.setdefault(pc, set()).add(spc)
+                        self.inst_cons_val.setdefault(pc, set()).update(
+                                self.inst_cons_val[spc])
                 else:
                     abst_r = self.inst_abst_addr[pc]
                     abst_ro = self.inst_abst_off[pc]
                     if not abst_r.difference(self.evaled) and \
                             not abst_ro.difference(self.evaled):
-                        #print(reads[pc]), exit(0)
                         for (addr, offset) in reads[pc]:
                             addr_cons, _ = self.re_eval_op(addr, set(), 0)
                             off_cons, _ = self.re_eval_op(offset, set(), 0)
@@ -478,10 +499,9 @@ class DG(object):
                                 #if cons_r.intersection(cons_w):
                                     # old ver. not consider offset
                                     self.evaled.add(pc)
-                                    self.addr_dep.setdefault(pc, set()).add(spc)
+                                    self.rw_dep.setdefault(pc, set()).add(spc)
                                     self.inst_cons_val.setdefault(pc, set()).update(
                                             self.inst_cons_val[spc])
-                                    #print("re connected")
 
         #for abst_pc in
         for bb in curb.all_outgoing_basic_blocks:

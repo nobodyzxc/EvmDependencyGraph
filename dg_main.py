@@ -39,7 +39,7 @@ else:
         print('export as', htmlname)
         DGDotExporter(cfg.dg).\
                 export(htmlname)
-        print(cfg.dg.addr_dep)
+        print(cfg.dg.rw_dep)
         #for ins in cfg.instructions:
         #    print(ins.pc, ins.name)
         '''
