@@ -5,13 +5,14 @@ from itertools import product, chain
 
 flatten = lambda it: list(chain.from_iterable(it))
 
-hexlst = lambda s: sorted([hex(e) for e in s])
+hl = lambda s: sorted([hex(e) for e in s])
 
 indirects = ('MSTORE', 'SSTORE', 'MLOAD', 'SLOAD',
         'CALLVALUE', 'CALLER', 'CALLDATALOAD',
         'SHA3', 'CREATE', 'CALL', 'RETURN')
 
 indreads = ('SLOAD', 'MLOAD')
+indwrites = ('SSTORE', 'MSTORE')
 
 def sha3(code):
     keccak_hash = keccak.new(digest_bits=256)
@@ -368,53 +369,91 @@ class DG(object):
                     self.inst_cons_off.setdefault(pc, set()).update(off_cons)
                     self.inst_abst_off.setdefault(pc, set()).update(off_abs)
 
-    def check(self):
+    def exist_re(self):
         print()
-        print('evaled:', hexlst(self.evaled))
-        print('connected:', hexlst(set(self.rw_dep.keys())))
+        print('evaled:', hl(self.evaled))
+        print('connected:', hl(set(self.rw_dep.keys())))
         not_evaled = set(self.inst2block.keys()).difference(self.evaled)
-        print('not evaled:', hexlst(not_evaled))
-        can, cant = set(), set()
+        print('not evaled:', hl(not_evaled))
+        can = set()
         for pc in not_evaled:
             abst = self.inst_abst_addr[pc]
             abst_o = self.inst_abst_off[pc]
             abst_v = self.inst_abst_val.get(pc, set())
-            if not abst.difference(self.evaled) and \
-                    not abst_o.difference(self.evaled) and \
-                    not abst_v.difference(self.evaled):
+            if not abst.difference(self.evaled) \
+                and not abst_o.difference(self.evaled) \
+                and not abst_v.difference(self.evaled) \
+                and self.cfg.instructions_from_addr[pc].name in indwrites:
                 can.add(pc)
-        print('can re-eval', hexlst(can))
+        print('can re-evaled writes:', can)
         print()
+        return can
 
+    def re_eval_write(self, pc):
+
+        writes = self.mwrites if pc in self.mwrites else self.swrites
+
+        for (addr, offset, val) in writes[pc]:
+            addr_cons, addr_abs = self.re_eval_op(addr, set(), 0)
+            off_cons, off_abs = self.re_eval_op(offset, set(), 0)
+            val_cons, val_abs = self.re_eval_op(val, set(), 0)
+
+            self.inst_cons_addr.setdefault(pc, set()).update(addr_cons)
+            self.inst_abst_addr.setdefault(pc, set()).update(addr_abs)
+            self.inst_cons_off.setdefault(pc, set()).update(off_cons)
+            self.inst_abst_off.setdefault(pc, set()).update(off_abs)
+            self.inst_cons_val.setdefault(pc, set()).update(val_cons)
+            self.inst_abst_val.setdefault(pc, set()).update(val_abs)
+
+            if addr_cons and off_cons and val_cons:
+                self.evaled.add(pc)
+
+            if not val_cons and not val_abs:
+                print("wrong empty"), exit(0)
+
+    def re_eval_read(self, pc):
+
+        reads = self.mreads if pc in self.mreads else self.sreads
+
+        for (addr, offset) in reads[pc]:
+            addr_cons, _ = self.re_eval_op(addr, set(), 0)
+            off_cons, _ = self.re_eval_op(offset, set(), 0)
+            self.inst_cons_addr.setdefault(pc, set()).update(addr_cons)
+            self.inst_cons_off.setdefault(pc, set()).update(off_cons)
 
     def build_dependency(self):
         self.eval_addrs()
         visited = set()
 
-        visited = self.build_addr_dependency(self.swrites, self.sreads, \
+        while True:
+            visited = self.build_addr_dependency(self.swrites, self.sreads, \
                                                 self.block2inst_sto, visited)
-        self.check()
 
-        visited = self.build_addr_dependency(self.mwrites, self.mreads, \
+            visited = self.build_addr_dependency(self.mwrites, self.mreads, \
                                                 self.block2inst_mem, visited)
-        self.check()
+
+            re_pcs = self.exist_re()
+
+            if not re_pcs: break
+
+            for pc in re_pcs:
+                self.re_eval_write(pc)
 
     def build_addr_dependency(self, writes, reads, b2i, visited):
 
         cons_writes = []
-        for pc in writes:
-            if pc not in visited \
-                and self.inst_cons_addr[pc] \
-                and self.inst_cons_off[pc] \
-                and self.inst_cons_val[pc]:
-                cons_writes.append(pc)
-                visited.add(pc)
-            else:
-                print(hex(pc), self.cfg.instructions_from_addr[pc].name, 'cannot dfs')
-                print(self.inst_cons_addr[pc], self.inst_cons_off[pc], self.inst_cons_val[pc])
-                print(self.inst_abst_addr[pc], self.inst_abst_off[pc], self.inst_abst_val[pc])
 
-        while cons_writes:
+        while True:
+
+            for pc in writes:
+                if pc not in visited \
+                        and self.inst_cons_addr[pc] \
+                        and self.inst_cons_off[pc] \
+                        and self.inst_cons_val[pc]:
+                    cons_writes.append(pc)
+                    visited.add(pc)
+
+            if not cons_writes: break
 
             while cons_writes:
                 pc = cons_writes.pop()
@@ -428,39 +467,9 @@ class DG(object):
                 if not abst.difference(self.evaled) and \
                         not abst_o.difference(self.evaled) and \
                         not abst_v.difference(self.evaled):
-                    for (addr, offset, val) in writes[pc]:
-                        addr_cons, addr_abs = self.re_eval_op(addr, set(), 0)
-                        off_cons, off_abs = self.re_eval_op(offset, set(), 0)
-                        val_cons, val_abs = self.re_eval_op(val, set(), 0)
+                    self.re_eval_write(pc)
 
-                        self.inst_cons_addr.setdefault(pc, set()).update(addr_cons)
-                        self.inst_abst_addr.setdefault(pc, set()).update(addr_abs)
-                        self.inst_cons_off.setdefault(pc, set()).update(off_cons)
-                        self.inst_abst_off.setdefault(pc, set()).update(off_abs)
-                        self.inst_cons_val.setdefault(pc, set()).update(val_cons)
-                        self.inst_abst_val.setdefault(pc, set()).update(val_abs)
-
-                        #print("rev c", hex(pc),
-                        #        hexlst(self.inst_cons_addr[pc]) ,
-                        #        hexlst(self.inst_cons_off[pc]) ,
-                        #        hexlst(self.inst_cons_val[pc]))
-                        #print("rev a", hex(pc),
-                        #        hexlst(self.inst_abst_addr[pc]) ,
-                        #        hexlst(self.inst_abst_off[pc]) ,
-                        #        hexlst(self.inst_abst_val[pc]))
-
-                        if not val_cons and not val_abs:
-                            print("fuck empty"), exit(0)
-
-
-                if pc not in visited \
-                        and self.inst_cons_addr[pc] \
-                        and self.inst_cons_off[pc] \
-                        and self.inst_cons_val[pc]:
-                    cons_writes.append(pc)
-                    visited.add(pc)
-
-        print('not visited writes', hexlst(set(writes.keys()).difference(visited)))
+        print('not visited writes', hl(set(writes.keys()).difference(visited)))
         return visited
 
     def cfg_depend_dfs(self, spc, curb, b2i, reads, visited):
@@ -471,7 +480,18 @@ class DG(object):
         if curb in visited: return []
         else: visited.add(curb)
 
-        for pc in b2i.get(curb, []):
+        curins = b2i.get(curb, [])
+
+        for pc in curins:
+
+            if ((spc not in curins) or (spc in curins and pc > spc))\
+                and self.cfg.instructions_from_addr[pc].name == \
+                    self.cfg.instructions_from_addr[spc].name \
+                and self.inst_cons_addr[pc].intersection(self.inst_cons_addr[spc]):
+                visited.remove(curb)
+                return [] # if re-write the same addr, not do the dfs
+                          # still exists some prob here
+
             if pc in reads:
                 cons_r = self.inst_cons_addr[pc]
                 cons_ro = self.inst_cons_off[pc]
@@ -485,23 +505,19 @@ class DG(object):
                 else:
                     abst_r = self.inst_abst_addr[pc]
                     abst_ro = self.inst_abst_off[pc]
-                    if not abst_r.difference(self.evaled) and \
-                            not abst_ro.difference(self.evaled):
-                        for (addr, offset) in reads[pc]:
-                            addr_cons, _ = self.re_eval_op(addr, set(), 0)
-                            off_cons, _ = self.re_eval_op(offset, set(), 0)
-                            self.inst_cons_addr.setdefault(pc, set()).update(addr_cons)
-                            self.inst_cons_off.setdefault(pc, set()).update(off_cons)
-                            cons_r = self.inst_cons_addr[pc]
-                            cons_ro = self.inst_cons_off[pc]
-                            if cons_r and cons_ro:
-                                if overlap(cons_w, cons_wo, cons_r, cons_ro):
-                                #if cons_r.intersection(cons_w):
-                                    # old ver. not consider offset
-                                    self.evaled.add(pc)
-                                    self.rw_dep.setdefault(pc, set()).add(spc)
-                                    self.inst_cons_val.setdefault(pc, set()).update(
-                                            self.inst_cons_val[spc])
+                    if not abst_r.difference(self.evaled) \
+                        and not abst_ro.difference(self.evaled):
+                        self.re_eval_read(pc)
+                        cons_r = self.inst_cons_addr[pc]
+                        cons_ro = self.inst_cons_off[pc]
+                        if cons_r and cons_ro:
+                            if overlap(cons_w, cons_wo, cons_r, cons_ro):
+                            #if cons_r.intersection(cons_w):
+                                # old ver. not consider offset
+                                self.evaled.add(pc)
+                                self.rw_dep.setdefault(pc, set()).add(spc)
+                                self.inst_cons_val.setdefault(pc, set()).update(
+                                        self.inst_cons_val[spc])
 
         #for abst_pc in
         for bb in curb.all_outgoing_basic_blocks:
