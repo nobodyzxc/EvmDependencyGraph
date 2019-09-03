@@ -319,7 +319,7 @@ class DG(object):
             if pc >= bb.start.pc and pc <= bb.end.pc:
                 return bb
 
-    def eval_addrs(self):
+    def pre_eval(self):
 
         self.inst2block = {} # inst.pc : basicblock
         self.block2inst_mem = {} # basicblock : [inst.pc]
@@ -422,7 +422,7 @@ class DG(object):
             self.inst_cons_off.setdefault(pc, set()).update(off_cons)
 
     def build_dependency(self):
-        self.eval_addrs()
+        self.pre_eval()
         visited = set()
 
         while True:
