@@ -1,7 +1,7 @@
 import sys
 from .dg import DG
 from .cfg.function import Function
-from .stack import Stack
+from .stack import abstStack
 
 
 BASIC_BLOCK_END = ['STOP',
@@ -88,38 +88,40 @@ class StackValueAnalysis(object):
         ins = self.cfg.instructions_from_addr[addr]
         return ins.name == 'JUMPDEST'
 
-    def stub(self, ins, addr, stack):
-        return (False, None)
+    #def stub(self, ins, addr, stack):
+    #    return (False, None)
 
-    def _transfer_func_ins(self, ins, addr, stackIn):
-        stack = Stack()
-        stack.copy_stack(stackIn)
+    def _transfer_func_ins(self, ins, addr, stacks):
+        ostk, istk = stacks
+        oprdStack = AbstStack().copy_stack(ostk)
+        instStack = ListStack().copy_stack(istk)
 
-        (is_stub, stub_ret) = self.stub(ins, addr, stack)
-        if is_stub:
-            return stub_ret
+        # useless?
+        #(is_stub, stub_ret) = self.stub(ins, addr, stack)
+        #if is_stub:
+        #    return stub_ret
 
         op = ins.name
         if op.startswith('PUSH'):
-            stack.push(ins.operand)
-            stack.ipush(ins)
+            instStack.push(ins)
+            oprdStack.push(ins.operand)
         elif op.startswith('SWAP'):
             nth_elem = int(op[4:])
-            stack.swap(nth_elem)
-            stack.iswap(nth_elem)
+            instStack.swap(nth_elem)
+            oprdStack.swap(nth_elem)
         elif op.startswith('DUP'):
             nth_elem = int(op[3:])
-            stack.dup(nth_elem)
-            stack.idup(nth_elem)
+            instStack.dup(nth_elem)
+            oprdStack.dup(nth_elem)
         elif op == 'AND':
-            v1 = stack.pop()
-            v2 = stack.pop()
-            stack.push(v1.absAnd(v2))
+            v1 = oprdStack.pop()
+            v2 = oprdStack.pop()
+            oprdStack.push(v1.absAnd(v2))
 
-            for i, s in enumerate(stack._insts):
-                v1 = stack.ipopOf(i)
-                v2 = stack.ipopOf(i)
-                stack._insts[i].append(ins)
+            for i, s in enumerate(instStack._insts): # TODO
+                v1 = instStack.ipopOf(i)
+                v2 = instStack.ipopOf(i)
+                instStack._insts[i].append(ins)
                 self.dg.add_edges(ins, [v1, v2])
                 # mark?
         # For all the other opcode: remove
@@ -129,22 +131,22 @@ class StackValueAnalysis(object):
             n_pop = ins.pops
             n_push = ins.pushes
             for _ in range(0, n_pop):
-                stack.pop()
+                oprdStack.pop()
 
             args = []
-            for i, s in enumerate(stack._insts):
-                args = [stack.ipopOf(i) for _ in range(0, n_pop)]
+            for i, s in enumerate(instStack._insts):
+                args = [instStack.ipopOf(i) for _ in range(0, n_pop)]
                 self.dg.add_edges(ins, args)
 
             for _ in range(0, n_push):
-                stack.push(None)
-                stack.ipush(ins)
+                oprdStack.push(None)
+                instStack.ipush(ins)
 
             self.dg.record_ins(ins, args)
 
-        return stack
+        return oprdStack, instStack
 
-    def _explore_bb(self, bb, stack):
+    def _explore_bb(self, bb, stacks):
         '''
             Update the stack of a basic block. Return the last jump/jumpi
             target
@@ -168,17 +170,18 @@ class StackValueAnalysis(object):
         ins = None
         for ins in bb.instructions:
             addr = ins.pc
-            self.stacksIn[addr] = stack
-            stack = self._transfer_func_ins(ins, addr, stack)
+            self.stacksIn[addr] = stacks
+            stacks = self._transfer_func_ins(ins, addr, stacks)
 
-            self.stacksOut[addr] = stack
+            self.stacksOut[addr] = stacks
 
         if ins:
             # if we are going to do a jump / jumpi
             # get the destination
             op = ins.name
             if op == 'JUMP' or op == 'JUMPI':
-                last_jump = stack.top()
+                oprdStack, _ = stacks
+                last_jump = oprdStack.top()
         return last_jump
 
     def _transfer_func_bb(self, bb, init=False):
@@ -204,15 +207,17 @@ class StackValueAnalysis(object):
 
         # Check if the bb was already analyzed (used for convergence)
         if end in self.stacksOut:
-            prev_stack = self.stacksOut[end]
+            prev_stacks = self.stacksOut[end]
         else:
-            prev_stack = None
+            prev_stacks = None
 
 
         if init and self.initStack:
-            stack = self.initStack
+            oprdStack = self.initStack
         else:
-            stack = Stack()
+            oprdStack = AbstStack()
+
+        instStack = ListStack()
 
         # Merge all the stack incoming_basic_blocks
         # We merge only father that were already analyzed
@@ -223,11 +228,14 @@ class StackValueAnalysis(object):
         if incoming_basic_blocks:
             father = incoming_basic_blocks[0]
             incoming_basic_blocks = incoming_basic_blocks[1::]
-            stack.copy_stack(self.stacksOut[father.end.pc])
+            out_ostk, out_istk = self.stacksOut[father.end.pc]
+            oprdStack.copy_stack(out_ostk)
+            instStack.copy_stack(out_istk)
             for father in incoming_basic_blocks:
-                stack = stack.merge(self.stacksOut[father.end.pc])
+                oprdStack = oprdStack.merge(out_ostk)
+                instStack = instStack.merge(out_istk)
         # Analyze the BB
-        self._explore_bb(bb, stack)
+        self._explore_bb(bb, (oprdStack, instStack))
 
         # check if the last instruction is a JUMP
         op = end_ins.name
@@ -235,7 +243,7 @@ class StackValueAnalysis(object):
         if op == 'JUMP':
             src = end
 
-            dst = self.stacksIn[end].top().get_vals()
+            dst = self.stacksIn[end][0].top().get_vals()
 
             if dst:
                 dst = [x for x in dst if x and self.is_jumpdst(x)]
@@ -245,7 +253,7 @@ class StackValueAnalysis(object):
         elif op == 'JUMPI':
             src = end
 
-            dst = self.stacksIn[end].top().get_vals()
+            dst = self.stacksIn[end][0].top().get_vals()
             if dst:
                 dst = [x for x in dst if x and self.is_jumpdst(x)]
 
@@ -254,8 +262,8 @@ class StackValueAnalysis(object):
         # check for convergence
         converged = False
 
-        if prev_stack:
-            if prev_stack.equals(self.stacksOut[end]):
+        if prev_stacks:
+            if prev_stacks[0].equals(self.stacksOut[end][0]):
                 converged = True
 
         if not converged:

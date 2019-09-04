@@ -154,7 +154,7 @@ class AbsStackElem(object):
         return str(self._vals)
 
 
-class Stack(object):
+class AbstStack(object):
     '''
         Stack representation
         The stack is updated throyugh the push/pop/dup operation, and returns
@@ -164,7 +164,6 @@ class Stack(object):
 
     def __init__(self):
         self._elems = []
-        self._insts = [[]]
 
     def copy_stack(self, stack):
         '''
@@ -174,7 +173,7 @@ class Stack(object):
             Stack: stack to copy
         '''
         self._elems = [x.get_copy() for x in stack.get_elems()]
-        self._insts = [x.copy() for x in stack.get_insts()]
+        return self
 
     def push(self, elem):
         '''
@@ -191,14 +190,6 @@ class Stack(object):
 
         self._elems.append(elem)
 
-    def ipush(self, inst):
-        #if not isinstance(inst, AbsStackElem):
-        #    st = AbsStackElem()
-        #    st.append(inst)
-        #    inst = st
-        for i, s in enumerate(self._insts):
-            self._insts[i].append(inst)
-
     def insert(self, elem):
         if not isinstance(elem, AbsStackElem):
             st = AbsStackElem()
@@ -206,15 +197,6 @@ class Stack(object):
             elem = st
 
         self._elems.insert(0, elem)
-
-    def iinsert(self, inst):
-        #if not isinstance(inst, AbsStackElem):
-        #    st = AbsStackElem()
-        #    st.append(inst)
-        #    inst = st
-
-        for i, s in enumerate(self._insts):
-            self._insts[i].insert(0, inst)
 
     def pop(self):
         '''
@@ -226,20 +208,6 @@ class Stack(object):
             self.push(None)
 
         return self._elems.pop()
-
-    def ipop(self):
-
-        for i, s in enumerate(self._insts):
-            if not self._insts[i]:
-                self._insts[i].append(None)
-        return [self._insts[i].pop() for i, s in enumerate(self._insts)]
-
-    def ipopOf(self, idx):
-
-        if not self._insts[idx]:
-            self._insts[idx].append(None)
-        return self._insts[idx].pop()
-
 
     def swap(self, n):
         '''
@@ -262,29 +230,6 @@ class Stack(object):
                 self.insert(None)
             self._elems[-1-n] = top
 
-    def iswap(self, n):
-        '''
-            Swap operation
-        Args:
-            n (int)
-        '''
-        for i, s in enumerate(self._insts):
-            if len(self._insts[i]) >= (n+1):
-                inst = self._insts[i][-1-n]
-                top = self.itopOf(i)
-                self._insts[i][-1] = inst
-                self._insts[i][-1-n] = top
-
-            # if we swap more than the size of the stack,
-            # we can assume that elements are missing on the stack
-            else:
-                top = self.itopOf(i)
-                missing_insts = n - len(self._insts[i]) + 1
-                for _ in range(0, missing_elems):
-                    self.iinsert(None)
-                self._insts[i][-1-n] = top
-
-
     def dup(self, n):
         '''
             Dup operation
@@ -294,14 +239,6 @@ class Stack(object):
         else:
             self.push(None)
 
-    def idup(self, n):
-
-        for i, s in enumerate(self._insts):
-            if len(self._insts[i]) >= n:
-                self._insts[i].append(self._insts[i][-n])
-            else:
-                self._insts[i].append(None)
-
     def get_elems(self):
         '''
             Returns the stack elements
@@ -310,9 +247,6 @@ class Stack(object):
         '''
         return self._elems
 
-    def get_insts(self):
-        return self._insts
-
     def set_elems(self, elems):
         '''
             Set the stack elements
@@ -320,9 +254,6 @@ class Stack(object):
             elems (list of AbsStackElem)
         '''
         self._elems = elems
-
-    def set_insts(self, insts):
-        self._insts = insts
 
     def merge(self, stack):
         '''
@@ -346,11 +277,6 @@ class Stack(object):
         for i in range(0, len(shortStack)):
             longStack[-(i+1)] = longStack[-(i+1)].merge(shortStack[-(i+1)])
         newSt.set_elems(longStack)
-
-        insts1 = self.get_insts()
-        insts2 = stack.get_insts()
-        insts = [x.copy() for x in insts1] + [x.copy() for x in insts2]
-        newSt.set_insts(insts)
 
         return newSt
 
@@ -381,7 +307,117 @@ class Stack(object):
             self.push(None)
         return self._elems[-1]
 
-    def itopOf(self, idx):
+    def __str__(self):
+        '''
+            String representation (only first 5 items)
+        '''
+        return str([str(x) for x in self._elems[-100::]])
+
+
+class ListStack(object):
+    '''
+        Stack representation
+        The stack is updated throyugh the push/pop/dup operation, and returns
+        itself
+        We keep the same stack for one basic block, to reduce the memory usage
+    '''
+
+    def __init__(self):
+        self._insts = [[]]
+
+    def copy_stack(self, stack):
+        '''
+            Copy the given stack
+
+        Args:
+            Stack: stack to copy
+        '''
+        self._insts = [x.copy() for x in stack.get_insts()]
+        return self
+
+    def push(self, inst):
+        #if not isinstance(inst, AbsStackElem):
+        #    st = AbsStackElem()
+        #    st.append(inst)
+        #    inst = st
+        for i, s in enumerate(self._insts):
+            self._insts[i].append(inst)
+
+    def insert(self, inst):
+        #if not isinstance(inst, AbsStackElem):
+        #    st = AbsStackElem()
+        #    st.append(inst)
+        #    inst = st
+
+        for i, s in enumerate(self._insts):
+            self._insts[i].insert(0, inst)
+
+    def pop(self):
+
+        for i, s in enumerate(self._insts):
+            if not self._insts[i]:
+                self._insts[i].append(None)
+        return [self._insts[i].pop() for i, s in enumerate(self._insts)]
+
+    def ipopOf(self, idx):
+
+        if not self._insts[idx]:
+            self._insts[idx].append(None)
+        return self._insts[idx].pop()
+
+    def swap(self, n):
+        '''
+            Swap operation
+        Args:
+            n (int)
+        '''
+        for i, s in enumerate(self._insts):
+            if len(self._insts[i]) >= (n+1):
+                inst = self._insts[i][-1-n]
+                top = self.topOf(i)
+                self._insts[i][-1] = inst
+                self._insts[i][-1-n] = top
+
+            # if we swap more than the size of the stack,
+            # we can assume that elements are missing on the stack
+            else:
+                top = self.topOf(i)
+                missing_insts = n - len(self._insts[i]) + 1
+                for _ in range(0, missing_insts):
+                    self.insert(None)
+                self._insts[i][-1-n] = top
+
+    def dup(self, n):
+
+        for i, s in enumerate(self._insts):
+            if len(self._insts[i]) >= n:
+                self._insts[i].append(self._insts[i][-n])
+            else:
+                self._insts[i].append(None)
+
+    def get_insts(self):
+        return self._insts
+
+    def set_insts(self, insts):
+        self._insts = insts
+        return self
+
+    def merge(self, stack):
+        return ListStack().set_insts(
+                [x.copy() for x in self.get_insts()] + \
+                [x.copy() for x in stack.get_insts()])
+
+    def equals(self, stack):
+        insts1 = self.get_insts()
+        insts2 = stack.get_insts()
+        if len(insts1) != len(insts2):
+            return False
+        for (v1, v2) in zip(insts1, insts2):
+            if not v1.equals(v2):
+                return False
+        return True
+
+    def topOf(self, idx):
 
         if not self._insts[idx]:
             self._insts[idx].append(None)
@@ -390,7 +426,7 @@ class Stack(object):
 
 
 
-    def itop(self):
+    def top(self):
         '''
             Return the element at the top (without pop)
         Returns:
@@ -406,6 +442,5 @@ class Stack(object):
         '''
             String representation (only first 5 items)
         '''
-        return str([str(x) for x in self._elems[-100::]])
-
+        return str([str(x) for x in self._insts[-100::]])
 
