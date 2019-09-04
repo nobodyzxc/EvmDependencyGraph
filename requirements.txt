@@ -1,0 +1,6 @@
+six==1.12.0
+networkx==1.11
+pyevmasm==0.2.1
+pycrypto==2.6.1
+pycryptodome==3.9.0
+pydotplus==2.0.2

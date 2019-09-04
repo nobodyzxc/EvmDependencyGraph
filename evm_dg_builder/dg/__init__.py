@@ -202,7 +202,8 @@ class DG(object):
 
         #if ct > 300: return [], ['...exceed the recursion limit']
 
-        ev_addr = lambda addr: self.eval_op( \
+        #ev_addr = lambda addr: self.eval_op( \
+        ev_addr = lambda addr: self.re_eval_op( \
                 self.cfg.instructions_from_addr[addr], visited, ct + 1)
 
         lzip = lambda *e: list(zip(*e))
@@ -249,9 +250,9 @@ class DG(object):
             visited.remove(op.pc)
 
             if not potential_consts and not depended_absts:
-                print("fuck, it's empty")
-            return potential_consts, depended_absts
+                print("{}@{} is empty", op.name, op.pc), exit(0)
 
+            return potential_consts, depended_absts
 
 
     def eval_op(self, op, visited, ct):
@@ -407,6 +408,15 @@ class DG(object):
 
             if addr_cons and off_cons and val_cons:
                 self.evaled.add(pc)
+            else:
+                abst = self.inst_abst_addr[pc]
+                abst_o = self.inst_abst_off[pc]
+                abst_v = self.inst_abst_val.get(pc, set())
+                if not abst.difference(self.evaled) \
+                    and not abst_o.difference(self.evaled) \
+                    and not abst_v.difference(self.evaled) \
+                    and self.cfg.instructions_from_addr[pc].name in indwrites:
+                    print("wrong here at ", pc), exit(0)
 
             if not val_cons and not val_abs:
                 print("wrong empty"), exit(0)
@@ -425,7 +435,11 @@ class DG(object):
         self.pre_eval()
         visited = set()
 
+        loop = 0
         while True:
+            if loop > 2000:
+                print("fuck"), exit(0)
+            loop += 1
             visited = self.build_addr_dependency(self.swrites, self.sreads, \
                                                 self.block2inst_sto, visited)
 
