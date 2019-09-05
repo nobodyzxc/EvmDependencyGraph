@@ -359,11 +359,6 @@ class ListStack(object):
                 self._insts[i].append(None)
         return [self._insts[i].pop() for i, s in enumerate(self._insts)]
 
-    def ipopOf(self, idx):
-
-        if not self._insts[idx]:
-            self._insts[idx].append(None)
-        return self._insts[idx].pop()
 
     def swap(self, n):
         '''

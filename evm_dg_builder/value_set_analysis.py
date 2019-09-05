@@ -118,12 +118,12 @@ class StackValueAnalysis(object):
             v2 = oprdStack.pop()
             oprdStack.push(v1.absAnd(v2))
 
-            for i, s in enumerate(instStack._insts): # TODO
-                v1 = instStack.ipopOf(i)
-                v2 = instStack.ipopOf(i)
-                instStack._insts[i].append(ins)
+            for s in instStack._insts:
+                v1 = s.pop() if s else None
+                v2 = s.pop() if s else None
+                s.append(ins)
                 self.dg.add_edges(ins, [v1, v2])
-                # mark?
+
         # For all the other opcode: remove
         # the pop elements, and push None elements
         # if JUMP or JUMPI saves the last value before poping
@@ -134,8 +134,9 @@ class StackValueAnalysis(object):
                 oprdStack.pop()
 
             args = []
-            for i, s in enumerate(instStack._insts):
-                args = [instStack.ipopOf(i) for _ in range(0, n_pop)]
+
+            for s in instStack._insts:
+                args = [s.pop() if s else None for _ in range(0, n_pop)]
                 self.dg.add_edges(ins, args)
 
             for _ in range(0, n_push):
