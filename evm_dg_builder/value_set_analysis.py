@@ -1,7 +1,7 @@
 import sys
 from .dg import DG
 from .cfg.function import Function
-from .stack import abstStack
+from .stack import AbstStack, ListStack
 
 
 BASIC_BLOCK_END = ['STOP',
@@ -140,7 +140,7 @@ class StackValueAnalysis(object):
 
             for _ in range(0, n_push):
                 oprdStack.push(None)
-                instStack.ipush(ins)
+                instStack.push(ins)
 
             self.dg.record_ins(ins, args)
 

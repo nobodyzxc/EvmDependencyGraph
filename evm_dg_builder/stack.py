@@ -262,7 +262,7 @@ class AbstStack(object):
             stack (Stack)
         Returns: New object representing the merge
         '''
-        newSt = Stack()
+        newSt = AbstStack()
         elems1 = self.get_elems()
         elems2 = stack.get_elems()
         # We look for the longer stack

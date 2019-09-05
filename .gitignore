@@ -1,0 +1,5 @@
+*.sol
+*.dot
+*.html
+*.svg
+__pycache__
