@@ -240,9 +240,9 @@ class DG(object):
                         val = eargs[0] // eargs[1]
                     elif op.name == 'EQ':
                         val = 1 if eargs[0] == eargs[1] else 0
-                    elif op.name == 'SHA3':
-                        # μ′s[0]≡Keccak(μm[μs[0]...(μs[0] +μs[1]−1)])
-                        raise Exception("re-eval_op: need support {}".format(op.name))
+                    #elif op.name == 'SHA3':
+                    #    # μ′s[0]≡Keccak(μm[μs[0]...(μs[0] +μs[1]−1)])
+                    #    raise Exception("re-eval_op: need support {}".format(op.name))
                     elif op.name in indreads:
                         potential_consts.extend(self.inst_cons_val[op.pc])
                     else:
@@ -307,9 +307,9 @@ class DG(object):
                         val = eargs[0] // eargs[1]
                     elif op.name == 'EQ':
                         val = 1 if eargs[0] == eargs[1] else 0
-                    elif op.name == 'SHA3':
-                        # μ′s[0]≡Keccak(μm[μs[0]...(μs[0] +μs[1]−1)])
-                        raise Exception("re-eval_op: need support {}".format(op.name))
+                    #elif op.name == 'SHA3':
+                    #    # μ′s[0]≡Keccak(μm[μs[0]...(μs[0] +μs[1]−1)])
+                    #    raise Exception("re-eval_op: need support {}".format(op.name))
                     elif op.name in indirects:
                         depended_absts.add(op.pc)
                     else:
