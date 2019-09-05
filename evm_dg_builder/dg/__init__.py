@@ -17,6 +17,7 @@ indwrites = ('SSTORE', 'MSTORE')
 def sha3(code):
     keccak_hash = keccak.new(digest_bits=256)
     keccak_hash.update(code)
+    #keccak_hash.update('hello world'.encode('UTF-8'))
     return keccak_hash.hexdigest()
 
 def bit_not(n, numbits=256):
@@ -239,10 +240,13 @@ class DG(object):
                         val = eargs[0] // eargs[1]
                     elif op.name == 'EQ':
                         val = 1 if eargs[0] == eargs[1] else 0
+                    elif op.name == 'SHA3':
+                        # μ′s[0]≡Keccak(μm[μs[0]...(μs[0] +μs[1]−1)])
+                        raise Exception("re-eval_op: need support {}".format(op.name))
                     elif op.name in indreads:
                         potential_consts.extend(self.inst_cons_val[op.pc])
                     else:
-                        raise Exception("eval_op: need support {}".format(op.name))
+                        raise Exception("re-eval_op: need support {}".format(op.name))
                     if val != None: potential_consts.append(val)
                 absts = flatten(absts)
                 depended_absts.update(absts)
@@ -303,6 +307,9 @@ class DG(object):
                         val = eargs[0] // eargs[1]
                     elif op.name == 'EQ':
                         val = 1 if eargs[0] == eargs[1] else 0
+                    elif op.name == 'SHA3':
+                        # μ′s[0]≡Keccak(μm[μs[0]...(μs[0] +μs[1]−1)])
+                        raise Exception("re-eval_op: need support {}".format(op.name))
                     elif op.name in indirects:
                         depended_absts.add(op.pc)
                     else:
