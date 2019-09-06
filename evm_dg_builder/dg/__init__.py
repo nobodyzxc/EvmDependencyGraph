@@ -7,14 +7,32 @@ flatten = lambda it: list(chain.from_iterable(it))
 
 hl = lambda s: sorted([hex(e) for e in s])
 
-indirects = ('MSTORE', 'SSTORE', 'MLOAD', 'SLOAD',
-        'CALLVALUE', 'CALLER', 'CALLDATALOAD',
-        'SHA3', 'CREATE', 'CALL', 'RETURN')
+indirects = ('MSTORE', 'SSTORE', 'MLOAD', 'SLOAD', 'SHA3')
+
 
 indreads = ('SLOAD', 'MLOAD', 'SHA3')
 indwrites = ('SSTORE', 'MSTORE')
 
-externals = ('ADDRESS', 'TIMESTAMP', 'NUMBER')
+externals = ('ADDRESS', 'TIMESTAMP', 'NUMBER', 'CALLDATASIZE', 'RETURNDATASIZE', 'CALLER', 'CALLVALUE', 'CALLDATALOAD', 'CALL', 'RETURN'
+,'CREATE'
+,'MSIZE'
+,'BALANCE'
+,'ORIGIN'
+,'CALLDATACOPY'
+,'CODESIZE'
+,'EXTCODESIZE'
+,'CODECOPY'
+,'EXTCODECOPY'
+,'RETURNDATACOPY'
+,'GASPRICE'
+,'BLOCKHASH'
+,'COINBASE'
+,'DIFFICULTY'
+,'GASLIMIT')
+
+
+
+
 
 def sha3(code):
     keccak_hash = keccak.new(digest_bits=256)
@@ -168,6 +186,8 @@ class DG(object):
             SELFDESTRUCT omit
 
         """
+        if not all(args): return
+
         if ins.name == 'MSTORE':
             addr, val = args[0], args[1]
             self.mwrites.setdefault(ins.pc, []).append((addr, 32, val))
@@ -191,8 +211,7 @@ class DG(object):
         elif ins.name == 'RETURN':
             beg, offset = args[0:2]
             self.mreads.setdefault(ins.pc, []).append((beg, offset))
-
-        if ins.name == 'SLOAD':
+        elif ins.name == 'SLOAD':
             addr = args[0]
             self.sreads.setdefault(ins.pc, []).append((addr, 1))
 
@@ -222,13 +241,14 @@ class DG(object):
             visited.add(op.pc)
             potential_consts, depended_absts = [], set()
             for args in self.graph[op.pc].argNodes:
+                if -1 in args: continue # patch
                 consts, absts = lzip(*[ev_addr(arg) for arg in args]) \
                                             if args else ([], [])
                 val = None
                 for eargs in product(*consts):
                     if None in eargs: continue
                     if op.name == 'EXP':
-                        val = eargs[0] ** eargs[1]
+                        val = pow(eargs[0], eargs[1], 256)
                     elif op.name == 'MUL':
                         val = eargs[0] * eargs[1]
                     elif op.name == 'ISZERO': # simple not
@@ -236,11 +256,13 @@ class DG(object):
                     elif op.name == 'NOT': # bit wise not
                         val = bit_not(eargs[0])
                     elif op.name == 'ADD':
-                        val = sum(eargs)
+                        val = (eargs[0] + eargs[1]) % (2 ** 256)
                     elif op.name == 'SUB':
-                        val = eargs[0] - eargs[1]
+                        val = (eargs[0] - eargs[1]) % (2 ** 256)
                     elif op.name == 'AND':
                         val = eargs[0] & eargs[1]
+                    elif op.name == 'OR':
+                        val = eargs[0] | eargs[1]
                     elif op.name == 'DIV':
                         val = eargs[0] // eargs[1]
                     elif op.name == 'EQ':
@@ -248,6 +270,8 @@ class DG(object):
                     #elif op.name == 'SHA3':
                     #    # μ′s[0]≡Keccak(μm[μs[0]...(μs[0] +μs[1]−1)])
                     #    raise Exception("re-eval_op: need support {}".format(op.name))
+                    elif op.name in externals:
+                        pass
                     elif op.name in indreads:
                         try:
                             potential_consts.extend(self.inst_cons_val.get(op.pc, []))
@@ -255,6 +279,8 @@ class DG(object):
                             print('exception at', op.name)
                     else:
                         raise Exception("re-eval_op: need support {}".format(op.name))
+                    if val and val < 0: print(op, op.name, op.pc, eargs), exit(0)
+                    if type(val) == float: print(op, op.name, op.pc, eargs), exit(0)
                     if val != None: potential_consts.append(val)
                 absts = flatten(absts)
                 depended_absts.update(absts)
@@ -294,12 +320,14 @@ class DG(object):
             visited.add(op.pc)
             potential_consts, depended_absts = [], set()
             for args in self.graph[op.pc].argNodes:
+                if -1 in args: continue # patch
                 consts, absts = lzip(*[ev_addr(arg) for arg in args]) if args else ([], [])
                 val = None
                 for eargs in product(*consts):
                     if None in eargs: continue
                     if op.name == 'EXP':
-                        val = eargs[0] ** eargs[1]
+                        print(eargs[0], eargs[1])
+                        val = pow(eargs[0], eargs[1], 256)
                     elif op.name == 'MUL':
                         val = eargs[0] * eargs[1]
                     elif op.name == 'ISZERO': # simple not
@@ -307,11 +335,13 @@ class DG(object):
                     elif op.name == 'NOT': # bit wise not
                         val = bit_not(eargs[0])
                     elif op.name == 'ADD':
-                        val = sum(eargs)
+                        val = (eargs[0] + eargs[1]) % (2 ** 256)
                     elif op.name == 'SUB':
-                        val = eargs[0] - eargs[1]
+                        val = (eargs[0] - eargs[1]) % (2 ** 256)
                     elif op.name == 'AND':
                         val = eargs[0] & eargs[1]
+                    elif op.name == 'OR':
+                        val = eargs[0] | eargs[1]
                     elif op.name == 'DIV':
                         val = eargs[0] // eargs[1]
                     elif op.name == 'EQ':
@@ -571,7 +601,7 @@ class DG(object):
                             print('store inst pc:', spc)
                             print('check here w:', cons_w, cons_wo, self.inst_cons_val[spc], 'r:', cons_r, cons_ro)
                             #exit(0)
-                        elif self.cfg.instructions_from_addr[pc].name in ('RETURN', 'CALL'):
+                        elif self.cfg.instructions_from_addr[pc].name in ('RETURN', 'CALL', 'CREATE', 'MSIZE'):
                             self.evaled.add(pc)
                         else:
                             print("please implement the operation of", self.cfg.instructions_from_addr[pc].name)

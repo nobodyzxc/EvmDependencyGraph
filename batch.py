@@ -20,7 +20,7 @@ for idx, contract in enumerate(contracts):
         continue
     htmlname = str(idx) + '_' + filename + '_dg.html'
     print('({}/{}) export as {}'.format(idx, alllen, htmlname))
-    if idx <= 292: continue
+    if idx <= 501: continue
     cfg = CFG(bytecode)
     DGDotExporter(cfg.dg).export(htmlname)
     print(cfg.dg.rw_dep)
