@@ -33,6 +33,7 @@ else:
     for filename, bytecode in contracts:
 
         print(filename)
+        print(bytecode), exit(0)
 
         cfg = CFG(bytecode)
         htmlname = filename[:filename.find('.')] + '_' + filename[filename.find(':') + 1:]+ '_dg.html'

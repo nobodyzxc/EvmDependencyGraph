@@ -14,6 +14,8 @@ indirects = ('MSTORE', 'SSTORE', 'MLOAD', 'SLOAD',
 indreads = ('SLOAD', 'MLOAD', 'SHA3')
 indwrites = ('SSTORE', 'MSTORE')
 
+externals = ('ADDRESS', 'TIMESTAMP', 'NUMBER')
+
 def sha3(code):
     keccak_hash = keccak.new(digest_bits=256)
     keccak_hash.update(code)
@@ -86,7 +88,9 @@ class DG(object):
             yield k
 
     def name_of(self, addr):
-        return hex(addr) + ' ' + self.graph[addr].name
+        if addr in self.graph:
+            return hex(addr) + ' ' + self.graph[addr].name
+        else: return hex(addr)
 
     @property
     def instructions(self):
@@ -106,7 +110,8 @@ class DG(object):
         node.add_dependency(insts)
         color = randColor()
         for i in insts:
-            self.color[(ins.pc, i.pc)] = color
+            if ins and i:
+                self.color[(ins.pc, i.pc)] = color
         self.clr[((ins.pc, tuple([i.pc if i else -1 for i in insts])))] = color
 
     def nx_graph(self):
@@ -177,7 +182,6 @@ class DG(object):
         elif ins.name == 'SHA3':
             beg, offset = args[:2]
             self.mreads.setdefault(ins.pc, []).append((beg, offset))
-            print("SHA3 record", beg, offset)
         elif ins.name == 'CREATE':
             beg, offset = args[1:3]
             self.mreads.setdefault(ins.pc, []).append((beg, offset))
@@ -317,6 +321,8 @@ class DG(object):
                     #    raise Exception("re-eval_op: need support {}".format(op.name))
                     elif op.name in indirects:
                         depended_absts.add(op.pc)
+                    elif op.name in externals:
+                        depended_absts.add(op.pc)
                     else:
                         raise Exception("eval_op: need support {}".format(op.name))
                     if val != None: potential_consts.append(val)
@@ -388,6 +394,8 @@ class DG(object):
         print('connected:', hl(set(self.rw_dep.keys())))
         not_evaled = set(self.inst2block.keys()).difference(self.evaled)
         print('not evaled:', hl(not_evaled))
+        for pc in not_evaled:
+            self.show_data(pc)
         can = set()
         for pc in not_evaled:
             abst = self.inst_abst_addr[pc]
@@ -511,7 +519,7 @@ class DG(object):
 
             while cons_writes:
                 pc = cons_writes.pop()
-                self.cfg_depend_dfs(pc, self.inst2block[pc], b2i, reads, set())
+                self.cfg_depend_dfs(pc, self.inst2block[pc], b2i, reads, set(), 0)
 
             for pc in writes:
                 if pc in visited: continue
@@ -526,8 +534,9 @@ class DG(object):
         print('not visited writes', hl(set(writes.keys()).difference(visited)))
         return visited
 
-    def cfg_depend_dfs(self, spc, curb, b2i, reads, visited):
+    def cfg_depend_dfs(self, spc, curb, b2i, reads, visited, depth):
 
+        print('depth:', depth, spc)
         cons_w = self.inst_cons_addr[spc]
         cons_wo = self.inst_cons_off[spc]
 
@@ -553,7 +562,7 @@ class DG(object):
                     if overlap(cons_w, cons_wo, cons_r, cons_ro):
                     #if cons_r.intersection(cons_w): # old ver. not consider offset
                         self.rw_dep.setdefault(pc, set()).add(spc)
-                        if self.cfg.instructions_from_addr[pc].name in ('SLOAD', 'MLOAD', 'RETURN'):
+                        if self.cfg.instructions_from_addr[pc].name in ('SLOAD', 'MLOAD'):
                             self.evaled.add(pc)
                             print('propagate here w:', cons_w, cons_wo, self.inst_cons_val[spc], 'r:', cons_r, cons_ro)
                             self.inst_cons_val.setdefault(pc, set()).update(
@@ -562,6 +571,8 @@ class DG(object):
                             print('store inst pc:', spc)
                             print('check here w:', cons_w, cons_wo, self.inst_cons_val[spc], 'r:', cons_r, cons_ro)
                             #exit(0)
+                        elif self.cfg.instructions_from_addr[pc].name in ('RETURN', 'CALL'):
+                            self.evaled.add(pc)
                         else:
                             print("please implement the operation of", self.cfg.instructions_from_addr[pc].name)
                             exit(0)
@@ -585,6 +596,6 @@ class DG(object):
 
         #for abst_pc in
         for bb in curb.all_outgoing_basic_blocks:
-            self.cfg_depend_dfs(spc, bb, b2i, reads, visited)
+            self.cfg_depend_dfs(spc, bb, b2i, reads, visited, depth + 1)
 
         visited.remove(curb)

@@ -1,0 +1,26 @@
+from util import *
+from scc import SCCGraph
+from evm_dg_builder.cfg import CFG
+from argparse import ArgumentParser
+from sym_exec import sym_exec_scc_graph
+from exporter import DGDotExporter
+
+import json
+
+contracts = json.loads(open("contracts.json").read())
+
+alllen = len(contracts)
+for idx, contract in enumerate(contracts):
+    #print(contract['address'], contract['bytecode'])
+    filename = contract['address']
+    bytecode = contract['bytecode'][2:]
+    if not bytecode: continue
+    if bytecode.startswith('6060604052361561012d5763ffffffff60e060020a60003504166306fdde0381146101ec578063095ea7b31461027c57806317634514146102af57806318160ddd146102d157806323b872dd146102f3578063313ce5671461032c5780633cebb823146103525780634ee2cd7e1461037057806354fd4d50146103a15780636638c0871461043157806370a08231146104f157806380a540011461051f578063827f32c01461054b57806395d89b411461057e578063981b24d01461060e578063a9059cbb14610633578063bef97c8714610666578063c5bcc4f11461068a578063cae9ca51146106ac578063d3ce77fe14610723578063dd62ed3e14610756578063df8de3e71461078a578063e77772fe146107a8578063f41e60c5146107d4578063f77c4791146107eb575b6101ea5b60005461014690600160a060020a0316610817565b156101e157600080546040805160209081019390935280517ff48c3') or bytecode.startswith('60606040523615610147576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806306fdde0314610272578063095ea7b31461030b578063176345141461036257806318160ddd1461038857806323b872dd146103ae578063313ce567146104245780633cebb823146104505780634ee2cd7e1461048657806354fd4d501'):
+        print('({}/{}) skip {}'.format(idx, alllen, htmlname))
+        continue
+    htmlname = str(idx) + '_' + filename + '_dg.html'
+    print('({}/{}) export as {}'.format(idx, alllen, htmlname))
+    if idx <= 292: continue
+    cfg = CFG(bytecode)
+    DGDotExporter(cfg.dg).export(htmlname)
+    print(cfg.dg.rw_dep)
