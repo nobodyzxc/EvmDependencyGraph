@@ -138,12 +138,12 @@ class StackValueAnalysis(object):
             for s in instStack._insts:
                 args = [s.pop() if s else None for _ in range(0, n_pop)]
                 self.dg.add_edges(ins, args)
+                self.dg.record_ins(ins, args)
 
             for _ in range(0, n_push):
                 oprdStack.push(None)
                 instStack.push(ins)
 
-            self.dg.record_ins(ins, args)
 
         return oprdStack, instStack
 

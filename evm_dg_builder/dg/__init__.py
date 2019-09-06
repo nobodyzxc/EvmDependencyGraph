@@ -11,7 +11,7 @@ indirects = ('MSTORE', 'SSTORE', 'MLOAD', 'SLOAD',
         'CALLVALUE', 'CALLER', 'CALLDATALOAD',
         'SHA3', 'CREATE', 'CALL', 'RETURN')
 
-indreads = ('SLOAD', 'MLOAD')
+indreads = ('SLOAD', 'MLOAD', 'SHA3')
 indwrites = ('SSTORE', 'MSTORE')
 
 def sha3(code):
@@ -177,6 +177,7 @@ class DG(object):
         elif ins.name == 'SHA3':
             beg, offset = args[:2]
             self.mreads.setdefault(ins.pc, []).append((beg, offset))
+            print("SHA3 record", beg, offset)
         elif ins.name == 'CREATE':
             beg, offset = args[1:3]
             self.mreads.setdefault(ins.pc, []).append((beg, offset))
@@ -244,7 +245,10 @@ class DG(object):
                     #    # μ′s[0]≡Keccak(μm[μs[0]...(μs[0] +μs[1]−1)])
                     #    raise Exception("re-eval_op: need support {}".format(op.name))
                     elif op.name in indreads:
-                        potential_consts.extend(self.inst_cons_val[op.pc])
+                        try:
+                            potential_consts.extend(self.inst_cons_val.get(op.pc, []))
+                        except Exception as e:
+                            print('exception at', op.name)
                     else:
                         raise Exception("re-eval_op: need support {}".format(op.name))
                     if val != None: potential_consts.append(val)
@@ -254,7 +258,8 @@ class DG(object):
             visited.remove(op.pc)
 
             if not potential_consts and not depended_absts:
-                print("{}@{} is empty", op.name, op.pc), exit(0)
+                print("{}@{} is empty", op.name, op.pc)#, exit(0)
+                depended_absts.add(op.pc) # TODO
 
             return potential_consts, depended_absts
 
@@ -397,6 +402,28 @@ class DG(object):
         print()
         return can
 
+
+    def show_data(self, pc):
+        print("""{}@{}
+        addr
+            - cons {}
+            - abst {}
+        offset
+            - cons {}
+            - abst {}
+        value
+            - cons {}
+            - abst {}""".format(
+                self.cfg.instructions_from_addr[pc].name,
+                self.cfg.instructions_from_addr[pc].pc,
+                self.inst_cons_addr.setdefault(pc, set()),
+                self.inst_abst_addr.setdefault(pc, set()),
+                self.inst_cons_off.setdefault(pc, set()),
+                self.inst_abst_off.setdefault(pc, set()),
+                self.inst_cons_val.setdefault(pc, set()),
+                self.inst_abst_val.setdefault(pc, set())))
+
+
     def re_eval_write(self, pc):
 
         writes = self.mwrites if pc in self.mwrites else self.swrites
@@ -416,14 +443,20 @@ class DG(object):
             if addr_cons and off_cons and val_cons:
                 self.evaled.add(pc)
             else:
-                abst = self.inst_abst_addr[pc]
+                abst_a = self.inst_abst_addr[pc]
                 abst_o = self.inst_abst_off[pc]
                 abst_v = self.inst_abst_val.get(pc, set())
-                if not abst.difference(self.evaled) \
+                if not abst_a.difference(self.evaled) \
                     and not abst_o.difference(self.evaled) \
                     and not abst_v.difference(self.evaled) \
                     and self.cfg.instructions_from_addr[pc].name in indwrites:
-                    print("wrong here at ", pc), exit(0)
+                    print("wrong here at ", pc, self.cfg.instructions_from_addr[pc].name)
+                    self.inst_cons_addr.setdefault(pc, set())
+                    self.show_data(pc)
+                    print(self.evaled)
+                    self.show_data(val.pc)
+                    print(self.re_eval_op(val, set(), 0))
+                    exit(0)
 
             if not val_cons and not val_abs:
                 print("wrong empty"), exit(0)
@@ -482,10 +515,10 @@ class DG(object):
 
             for pc in writes:
                 if pc in visited: continue
-                abst = self.inst_abst_addr[pc]
+                abst_a = self.inst_abst_addr[pc]
                 abst_o = self.inst_abst_off[pc]
                 abst_v = self.inst_abst_val.get(pc, set())
-                if not abst.difference(self.evaled) and \
+                if not abst_a.difference(self.evaled) and \
                         not abst_o.difference(self.evaled) and \
                         not abst_v.difference(self.evaled):
                     self.re_eval_write(pc)
@@ -519,10 +552,20 @@ class DG(object):
                 if cons_r and cons_ro:
                     if overlap(cons_w, cons_wo, cons_r, cons_ro):
                     #if cons_r.intersection(cons_w): # old ver. not consider offset
-                        self.evaled.add(pc)
                         self.rw_dep.setdefault(pc, set()).add(spc)
-                        self.inst_cons_val.setdefault(pc, set()).update(
-                                self.inst_cons_val[spc])
+                        if self.cfg.instructions_from_addr[pc].name in ('SLOAD', 'MLOAD', 'RETURN'):
+                            self.evaled.add(pc)
+                            print('propagate here w:', cons_w, cons_wo, self.inst_cons_val[spc], 'r:', cons_r, cons_ro)
+                            self.inst_cons_val.setdefault(pc, set()).update(
+                                    self.inst_cons_val[spc])
+                        elif self.cfg.instructions_from_addr[pc].name == 'SHA3':
+                            print('store inst pc:', spc)
+                            print('check here w:', cons_w, cons_wo, self.inst_cons_val[spc], 'r:', cons_r, cons_ro)
+                            #exit(0)
+                        else:
+                            print("please implement the operation of", self.cfg.instructions_from_addr[pc].name)
+                            exit(0)
+
                 else:
                     abst_r = self.inst_abst_addr[pc]
                     abst_ro = self.inst_abst_off[pc]
